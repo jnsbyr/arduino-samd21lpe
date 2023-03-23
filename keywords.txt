@@ -1,0 +1,40 @@
+#######################################
+# Syntax Coloring Map For SAMD21 Low Power Extensions
+#######################################
+
+#######################################
+# Datatypes (KEYWORD1)
+#######################################
+
+Analog2DigitalConverter	KEYWORD1
+RealTimeClock	KEYWORD1
+System	KEYWORD1
+TimerCounter	KEYWORD1
+
+SleepMode KEYWORD1
+
+#######################################
+# Methods and Functions (KEYWORD2)
+#######################################
+
+setupClockGenOSCULP32K	KEYWORD2
+setupClockGenOSC8M	KEYWORD2
+disableClockGen	KEYWORD2
+enableClock	KEYWORD2
+disableClock	KEYWORD2
+reducePowerConsumption	KEYWORD2
+enableSysTick	KEYWORD2
+disableSysTick	KEYWORD2
+enablePORT	KEYWORD2
+setSleepMode	KEYWORD2
+setSleepOnExitISR	KEYWORD2
+sleep	KEYWORD2
+
+#######################################
+# Constants (LITERAL1)
+#######################################
+
+IDLE0	LITERAL1
+IDLE1	LITERAL1
+IDLE2	LITERAL1
+STANDBY	LITERAL1
