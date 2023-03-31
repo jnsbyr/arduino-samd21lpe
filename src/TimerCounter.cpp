@@ -30,7 +30,7 @@
 using namespace SAMD21LPE;
 
 
-bool TimerCounter::enable(uint8_t id, uint8_t clkGenId, uint32_t clkGenFrequency, Prescaler clkDiv, Resolution resolution)
+bool TimerCounter::enable(uint8_t id, uint8_t clkGenId, uint32_t clkGenFrequency, Prescaler clkDiv, Resolution resolution, bool runStandby)
 {
   if (id >= 3 && id <= 5 && (resolution == RES8 || resolution == RES16 || (id == 4 && resolution == RES32)))
   {
@@ -107,8 +107,9 @@ bool TimerCounter::enable(uint8_t id, uint8_t clkGenId, uint32_t clkGenFrequency
 
     // configure TC
     tc->COUNT8.CTRLA.reg = modeCount |
-                            TC_CTRLA_WAVEGEN_MFRQ |
-                            TC_CTRLA_PRESCALER(clkDiv);
+                           TC_CTRLA_WAVEGEN_MFRQ |
+                           TC_CTRLA_PRESCALER(clkDiv) |
+                           (runStandby? TC_CTRLA_RUNSTDBY : 0);
     while (tc->COUNT8.STATUS.bit.SYNCBUSY);
 
     // setup IRQ
@@ -188,7 +189,7 @@ void TimerCounter::disable()
   }
 }
 
-void TimerCounter::start(uint32_t duration, uint8_t periodic, void (*callback)())
+void TimerCounter::start(uint32_t duration, bool periodic, void (*callback)())
 {
   if (tc)
   {
@@ -225,8 +226,27 @@ void TimerCounter::start(uint32_t duration, uint8_t periodic, void (*callback)()
     while (tc->COUNT8.STATUS.bit.SYNCBUSY);
 
     // enable counter
-    tc->COUNT8.CTRLA.reg |= TC_CTRLA_ENABLE;
+    tc->COUNT8.CTRLA.bit.ENABLE = 1;
     while (tc->COUNT8.STATUS.bit.SYNCBUSY);
+  }
+}
+
+void TimerCounter::wait(uint32_t duration)
+{
+  interrupted = false;
+  start(duration);
+  while (!interrupted) System::sleep();
+}
+
+bool TimerCounter::isStopped()
+{
+  if (tc)
+  {
+    return tc->COUNT8.STATUS.bit.STOP;
+  }
+  else
+  {
+    return true;
   }
 }
 
@@ -239,7 +259,7 @@ void TimerCounter::restart()
   }
 }
 
-void TimerCounter::timerHandler(uint8_t id)
+void TimerCounter::isrHandler(uint8_t id)
 {
   if (id < 3)
   {
@@ -248,6 +268,7 @@ void TimerCounter::timerHandler(uint8_t id)
     {
       // clear all interrupt flags
       timterCounter->tc->COUNT8.INTFLAG.reg = timterCounter->tc->COUNT8.INTENSET.reg;
+      timterCounter->interrupted = true;
 
       // handle interrupt
       if (timterCounter->tcHandler)
@@ -260,13 +281,12 @@ void TimerCounter::timerHandler(uint8_t id)
 
 TimerCounter* TimerCounter::timerCounter[3] = { nullptr };
 
-
 /**
  * SAMD21 TC3 interrupt handler
  */
 void TC3_Handler()
 {
-  SAMD21LPE::TimerCounter::timerHandler(0);
+  SAMD21LPE::TimerCounter::isrHandler(0);
 }
 
 /**
@@ -274,7 +294,7 @@ void TC3_Handler()
  */
 void TC4_Handler()
 {
-  SAMD21LPE::TimerCounter::timerHandler(1);
+  SAMD21LPE::TimerCounter::isrHandler(1);
 }
 
 /**
@@ -282,5 +302,5 @@ void TC4_Handler()
  */
 void TC5_Handler()
 {
-  SAMD21LPE::TimerCounter::timerHandler(2);
+  SAMD21LPE::TimerCounter::isrHandler(2);
 }

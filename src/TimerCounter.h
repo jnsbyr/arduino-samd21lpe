@@ -2,7 +2,7 @@
  *
  * SAMD21 Low Power Extensions
  *
- * file:     TimerCounter.hpp
+ * file:     TimerCounter.h
  * encoding: UTF-8
  * created:  03.02.2023
  *
@@ -47,6 +47,7 @@ namespace SAMD21LPE
  * Arduino core uses timer counters to provide PWM output but does not support:
  * - timer interrupts
  * - configurable generic clock
+ * - idle/standby operation
  */
 class TimerCounter
 {
@@ -78,13 +79,20 @@ public:
 
 public:
   /**
+   * enable TC module(s), configure and enable TC generic clock, configure TC and enable IRQ
+   *
+   * notes:
+   * - timer will not be started, use start()
+   * - when using sleep mode, timer interrupt will wakeup MCU
+   *
    * @param id timer counter ID 3..5
    * @param clkGenId GCLKGEN ID 0..7
    * @param clkGenFrequency frequency of GCLKGEN [Hz]
    * @param clkDiv GCLK prescaler 0..7
    * @param resolution counter resolution [bits] 8, 16, TC4: 32
+   * @param runStandby keep timer active in standby
    */
-  bool enable(uint8_t id, uint8_t clkGenId, uint32_t clkGenFrequency, Prescaler clkDiv, Resolution resolution);
+  bool enable(uint8_t id, uint8_t clkGenId, uint32_t clkGenFrequency, Prescaler clkDiv, Resolution resolution, bool runStandby = false);
 
   /**
    * reenable TC module(s) and TC generic clock
@@ -97,21 +105,38 @@ public:
   void disable();
 
   /**
+   * start timer
    * @param duration [ms]
+   * @param periodc single if false, periodic if true
+   * @param callback function to call at timer interrupt, optional
    */
-  void start(uint32_t duration, uint8_t periodic = false, void (*callback)() = nullptr);
+  void start(uint32_t duration, bool periodic = false, void (*callback)() = nullptr);
+
+  /**
+   * start oneshot timer and wait for completion, blocking using configured sleep mode, see System::setSleepMode()
+   */
+  void wait(uint32_t duration);
+
+  /**
+   * check if timer is stopped, primarily for use with oneshot timer
+   */
+  bool isStopped();
 
   /**
    * restart oneshot timer with previous setting for duration and callback
    */
   void restart();
 
-  static void timerHandler(uint8_t id);
+  /**
+   * timer counter interrupt handler
+   */
+  static void isrHandler(uint8_t id);
 
 private:
   static TimerCounter* timerCounter[3];
 
 private:
+  bool interrupted = false;
   uint8_t id;
   uint8_t clkGenId = UCHAR_MAX;
   uint64_t clkGenFrequency; // [Hz]
