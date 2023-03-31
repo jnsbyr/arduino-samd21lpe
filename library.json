@@ -6,9 +6,9 @@
         "type": "git",
         "url": "https://github.com/jnsbyr/arduino-samd21lpe"
     },
-    "version": "1.0.0",
+    "version": "1.0.1",
     "exclude": "",
-    "examples": "",
+    "examples": "examples/*/*.ino",
     "frameworks": "arduino",
     "platforms": [
         "atmelsam"
