@@ -2,7 +2,7 @@
  *
  * SAMD21 Low Power Extensions
  *
- * file:     RealTimeClock.hpp
+ * file:     RealTimeClock.h
  * encoding: UTF-8
  * created:  03.02.2023
  *
