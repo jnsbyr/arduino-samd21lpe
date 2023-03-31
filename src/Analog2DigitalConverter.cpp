@@ -38,7 +38,7 @@ Analog2DigitalConverter& Analog2DigitalConverter::instance()
   return a2dc_;
 }
 
-void Analog2DigitalConverter::enable(uint8_t clkGenId, uint32_t clkGenFrequency, Prescaler clkDiv)
+void Analog2DigitalConverter::enable(uint8_t clkGenId, uint32_t clkGenFrequency, Prescaler clkDiv, bool runStandby)
 {
   this->clkGenId = clkGenId;
   System::enableClock(GCM_ADC, clkGenId);
@@ -57,6 +57,7 @@ void Analog2DigitalConverter::enable(uint8_t clkGenId, uint32_t clkGenFrequency,
 
   this->clkDiv = clkDiv;
   this->adcFrequency = clkGenFrequency/(1<<(clkDiv + 2));
+  this->runStandby = runStandby;
 
   setReference(REF_INT1V, 1.0f);
   setGain(GAIN_1);
@@ -76,9 +77,10 @@ void Analog2DigitalConverter::disable()
   System::disableClock(GCM_ADC);
 }
 
-void Analog2DigitalConverter::setSampling(uint8_t sampleTime, uint8_t averageCount)
+void Analog2DigitalConverter::setSampling(uint8_t sampleTime, uint8_t averageCount, bool singleShot)
 {
   this->sampleLength = ADC_SAMPCTRL_SAMPLEN(sampleTime <= 1? 0 : sampleTime > 64? 63 : sampleTime - 1);
+  this->singleShot = singleShot;
 
   uint8_t adjustResult = 0;
   if (averageCount < 4)
@@ -90,7 +92,9 @@ void Analog2DigitalConverter::setSampling(uint8_t sampleTime, uint8_t averageCou
     adjustResult = 4;
   }
 
-  ADC->CTRLB.reg = ADC_CTRLB_PRESCALER(clkDiv) | (averageCount > 0? ADC_CTRLB_RESSEL_16BIT : ADC_CTRLB_RESSEL_12BIT);
+  ADC->CTRLB.reg = ADC_CTRLB_PRESCALER(clkDiv) |
+                   (averageCount > 0? ADC_CTRLB_RESSEL_16BIT : ADC_CTRLB_RESSEL_12BIT) |
+                   (singleShot? 0 : ADC_CTRLB_FREERUN);
   ADC->AVGCTRL.reg = ADC_AVGCTRL_SAMPLENUM(averageCount) | ADC_AVGCTRL_ADJRES(adjustResult);
 
   // result resolution is 12 bit, even when averaging is used
@@ -181,13 +185,15 @@ void Analog2DigitalConverter::enablePin(uint8_t muxPosVal)
   }
 }
 
-float Analog2DigitalConverter::read(uint8_t muxPosVal)
+void Analog2DigitalConverter::start(uint8_t muxPosVal, void (*callback)())
 {
+  this->muxPosVal = muxPosVal;
+  this->adcHandler = callback;
+
   // enable temperature sensor or bandgap output and select sampleLength and input gain
   uint8_t sampleLength = this->sampleLength;
   uint32_t refSel = this->refSel;
   uint32_t gain = this->gain;
-  float resultScale = this->resultScale;
   switch (muxPosVal)
   {
     case ADC_INPUTCTRL_MUXPOS_TEMP_Val:
@@ -195,26 +201,27 @@ float Analog2DigitalConverter::read(uint8_t muxPosVal)
       sampleLength = ADC_SAMPCTRL_SAMPLEN(63); // min. 48 µs required, set to max. value
       refSel = ADC_REFCTRL_REFSEL_INT1V;
       gain = ADC_INPUTCTRL_GAIN_1X;
-      resultScale = 1.0f/adcFullScale; // use Vref = 1.0 V for compatiblity with temperature conversion algorithm
+      effectiveResultScale = 1.0f/adcFullScale; // use Vref = 1.0 V for compatiblity with temperature conversion algorithm
       break;
 
     case ADC_INPUTCTRL_MUXPOS_BANDGAP_Val:
       SYSCTRL->VREF.bit.BGOUTEN = 1;
       refSel = ADC_REFCTRL_REFSEL_INT1V;
       gain = ADC_INPUTCTRL_GAIN_DIV2;
-      resultScale = refVal1V*2/adcFullScale;
+      effectiveResultScale = refVal1V*2/adcFullScale;
       break;
 
     case ADC_INPUTCTRL_MUXPOS_SCALEDCOREVCC_Val:
     case ADC_INPUTCTRL_MUXPOS_SCALEDIOVCC_Val:
       refSel = ADC_REFCTRL_REFSEL_INT1V;
       gain = ADC_INPUTCTRL_GAIN_1X;
-      resultScale = refVal1V/adcFullScale;
+      effectiveResultScale = refVal1V*4/adcFullScale;
       break;
 
     default:
       // configure pin for analog input
       enablePin(muxPosVal);
+      effectiveResultScale = this->resultScale;
   }
 
   // set minimum sample length
@@ -223,26 +230,44 @@ float Analog2DigitalConverter::read(uint8_t muxPosVal)
   // select ADC single ended input and set gain
   ADC->INPUTCTRL.reg = ADC_INPUTCTRL_MUXPOS(muxPosVal) | ADC_INPUTCTRL_MUXNEG_GND | gain;
 
-  ADC->CTRLA.bit.ENABLE = 1;
+  ADC->CTRLA.reg = ADC_CTRLA_ENABLE |
+                   (runStandby? ADC_CTRLA_RUNSTDBY : 0);
   while (ADC->STATUS.bit.SYNCBUSY);
 
-  // start 1st conversion and discard on reference change
-  if (refSel != lastRefSel)
+  if (callback)
   {
-    // changing reference is only effective if ADC module is enabled
-    ADC->REFCTRL.reg = refSel;
-    ADC->SWTRIG.bit.START = 1;
-    while (!ADC->INTFLAG.bit.RESRDY);
-    ADC->INTFLAG.bit.RESRDY = 1;
+    // setup IRQ
+    NVIC_DisableIRQ(ADC_IRQn);
+    NVIC_ClearPendingIRQ(ADC_IRQn);
+    NVIC_SetPriority(ADC_IRQn, 0x00);
+    NVIC_EnableIRQ(ADC_IRQn);
 
-    lastRefSel = refSel;
+    // update reference
+    if (refSel != lastRefSel)
+    {
+      // changing reference is only effective if ADC module is enabled
+      ADC->REFCTRL.reg = refSel;
+    }
+
+    // start 1st conversion after enabling ADC
+    ADC->SWTRIG.bit.START = 1;
+  }
+}
+
+float Analog2DigitalConverter::read()
+{
+  // scale/convert result to voltage or temperature
+  float result = effectiveResultScale*ADC->RESULT.reg;
+  if (muxPosVal == ADC_INPUTCTRL_MUXPOS_TEMP_Val)
+  {
+    result = toTemperature(result);
   }
 
-  // start 2nd conversion and read
-  ADC->SWTRIG.bit.START = 1;
-  while (!ADC->INTFLAG.bit.RESRDY);
-  uint16_t result = ADC->RESULT.reg;
+  return result;
+}
 
+void Analog2DigitalConverter::stop()
+{
   // disable ADC
   ADC->CTRLA.bit.ENABLE = 0;
   while (ADC->STATUS.bit.SYNCBUSY);
@@ -257,23 +282,50 @@ float Analog2DigitalConverter::read(uint8_t muxPosVal)
     case ADC_INPUTCTRL_MUXPOS_BANDGAP_Val:
       SYSCTRL->VREF.bit.BGOUTEN = 0;
       break;
+  }
+}
 
-    case ADC_INPUTCTRL_MUXPOS_SCALEDCOREVCC_Val:
-    case ADC_INPUTCTRL_MUXPOS_SCALEDIOVCC_Val:
-      result = result << 2; // copensate divider 1:4
-      break;
+float Analog2DigitalConverter::read(uint8_t muxPosVal)
+{
+  // temporarily disable free run
+  if (!singleShot)
+  {
+    ADC->CTRLB.reg &= ~ADC_CTRLB_FREERUN;
   }
 
-  // return voltage or temperature
-  float voltage = resultScale*result;
-  if (muxPosVal == ADC_INPUTCTRL_MUXPOS_TEMP_Val)
+  // configure and enable ADC
+  start(muxPosVal);
+
+  // start 1st conversion and discard on reference change
+  if (refSel != lastRefSel)
   {
-    return toTemperature(voltage);
+    // changing reference is only effective if ADC module is enabled
+    ADC->REFCTRL.reg = refSel;
+    ADC->SWTRIG.bit.START = 1;
+    while (!ADC->INTFLAG.bit.RESRDY);
+    ADC->INTFLAG.bit.RESRDY = 1;
+
+    lastRefSel = refSel;
   }
-  else
+
+  // start 2nd conversion and wait for result
+  ADC->SWTRIG.bit.START = 1;
+  while (!ADC->INTFLAG.bit.RESRDY);
+  ADC->INTFLAG.bit.RESRDY = 1;
+
+  // get result
+  float result = read();
+
+  // disable ADC
+  stop();
+
+  // reenable free run
+  if (!singleShot)
   {
-    return voltage;
+    ADC->CTRLB.reg |= ADC_CTRLB_FREERUN;
   }
+
+  return result;
 }
 
 void Analog2DigitalConverter::loadTemperatureCalibrationValues()
@@ -332,6 +384,29 @@ uint8_t Analog2DigitalConverter::durationToHalfPeriods(uint16_t micros)
   return halfPeriods > 63? 63 : halfPeriods;
 }
 
+void Analog2DigitalConverter::isrHandler()
+{
+  Analog2DigitalConverter& adc = Analog2DigitalConverter::instance();
+  if (adc.adcHandler)
+  {
+    ADC->INTFLAG.bit.RESRDY = 1;
+    if (adc.lastRefSel != adc.refSel)
+    {
+      // discard 1st result after ref change and start new conversion
+      adc.lastRefSel = adc.refSel;
+      if (adc.singleShot)
+      {
+        ADC->SWTRIG.bit.START = 1;
+      }
+    }
+    else
+    {
+      // conversion result available
+      adc.adcHandler();
+    }
+  }
+}
+
 float Analog2DigitalConverter::roomTemp = 0;
 float Analog2DigitalConverter::hotTemp = 0;
 float Analog2DigitalConverter::roomInt1vRef = 0;
@@ -364,3 +439,8 @@ const Analog2DigitalConverter::Pin Analog2DigitalConverter::PIN_MAPPING[Analog2D
   { 0, 18, PORT_PA18 },
   { 0, 19, PORT_PA19 }
 };
+
+void ADC_Handler()
+{
+  SAMD21LPE::Analog2DigitalConverter::isrHandler();
+}

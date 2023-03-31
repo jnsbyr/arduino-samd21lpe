@@ -2,7 +2,7 @@
  *
  * SAMD21 Low Power Extensions
  *
- * file:     Analog2DigitalConverter.hpp
+ * file:     Analog2DigitalConverter.h
  * encoding: UTF-8
  * created:  03.02.2023
  *
@@ -42,13 +42,14 @@ namespace SAMD21LPE
  *
  * Background:
  *
- * Arduino core does not provide a solution to read:
- * - internal voltages
- * - core temperature
- * and does not support:
+ * Arduino core does not support:
+ * - reading internal voltages
+ * - reading core temperature
  * - variable input gain
  * - variable sampling length
- * - averaging
+ * - hardware averaging
+ * - interrupt based sampling
+ * - idle/standby operation
  */
 class Analog2DigitalConverter
 {
@@ -115,11 +116,15 @@ public:
    * - 1 sample, no averaging
    * - 2 µs sample duration
    *
+   * note:
+   * - ADC will not be started, use read()
+   *
    * @param clkGenId GCLKGEN ID 0..7
    * @param clkGenFrequency frequency of GCLKGEN [Hz]
    * @param clkDiv GCLK prescaler 0..7, 2^(clkDiv + 2), ADC clock must be at or below 2.1 MHz
+   * @param runStandby keep ADC active in standby
    */
-  void enable(uint8_t clkGenId, uint32_t clkGenFrequency, Prescaler clkDiv);
+  void enable(uint8_t clkGenId, uint32_t clkGenFrequency, Prescaler clkDiv, bool runStandby = false);
 
   /**
    * reenable ADC module and ADC generic clock
@@ -133,15 +138,20 @@ public:
 
   /**
    * configure sampling parameters
+   *
    * note: ADC must be enabled
    *
    * @param sampleTime 1..64 multiple of ADC clock half periods, max. 32 ADC clock periods, use durationToHalfPeriods() to convert from [µs]
    * @param averageCount 0..10 2^averageCount
+   * @param singleShot if true (default) start() will initiate single conversion, otherwise continuous conversion
    */
-  void setSampling(uint8_t sampleTime, uint8_t averageCount);
+  void setSampling(uint8_t sampleTime, uint8_t averageCount, bool singleShot = true);
 
   /**
-   * configure reference voltage
+   * set reference voltage
+   *
+   * note:
+   * - will be applied by start() or read()
    *
    * @param type reference voltage source, default REF_INT1V
    * @param voltage reference voltage [V], default 1.0 V, can also be used to scale result of read()
@@ -150,7 +160,10 @@ public:
   void setReference(Reference type, float voltage, bool forecUpdate = false);
 
   /**
-   * configure input gain
+   * set input gain
+   *
+   * note:
+   * - will be applied by start() or read()
    *
    * @param gain input gain, default 1.0
    */
@@ -164,20 +177,59 @@ public:
   void enablePin(uint8_t muxPosVal);
 
   /**
-   * analog read:
-   * - single ended measurement or internal source, blocking
+   * configure reference, gain and input, enable ADC and start conversion if callback is defined
    *
    * notes:
-   * - ADC must be enabled
+   * - single ended measurement from pin or internal source
+   * - singleshot conversion
+   * - use enable() to enable ADC
+   * - the following internal sources are supported:
+   *     ADC_INPUTCTRL_MUXPOS_SCALEDCOREVCC_Val: internal MCU voltage (~1.2 V)
+   *     ADC_INPUTCTRL_MUXPOS_SCALEDIOVCC_Val:   external MCU input voltage
+   *     ADC_INPUTCTRL_MUXPOS_BANDGAP_Val:       internal bandgap voltage (~1.1 V)
+   *     ADC_INPUTCTRL_MUXPOS_TEMP_Val:          core temperature [°C]
+   * - use read() to retrieve conversion result from callback
+   * - use stop() to disable ADC
+   *
+   * @param muxPos ADC_INPUTCTRL_MUXPOS_XXX_Val, use g_APinDescription[<Arduino pin>].ulADCChannelNumber to convert from Arduino pin
+   * @param callback function to call at ADC interrupt, optional
+   */
+  void start(uint8_t muxPosVal, void (*callback)() = nullptr);
+
+  /**
+   * analog read, non blocking
+   *
+   * notes:
+   * - use to retrieve scaled conversion result when conversion is completed (e.g. ready interrupt)
+   * - use enable() to enable ADC
+   * - use start() to initiate conversion
+   *
+   * @return ADC scaled result [V] or [°C], also see setReference()
+   */
+  float read();
+
+  /**
+   * disable ADC
+   */
+  void stop();
+
+  /**
+   * analog read, blocking
+   *
+   * notes:
+   * - single ended measurement from pin or internal source
+   * - singleshot conversion
+   * - use enable() to enable ADC
    * - the following internal sources are supported:
    *     ADC_INPUTCTRL_MUXPOS_SCALEDCOREVCC_Val: internal MCU voltage (~1.2 V)
    *     ADC_INPUTCTRL_MUXPOS_SCALEDIOVCC_Val:   external MCU input voltage
    *     ADC_INPUTCTRL_MUXPOS_BANDGAP_Val:       internal bandgap voltage (~1.1 V)
    *     ADC_INPUTCTRL_MUXPOS_TEMP_Val:          core temperature [°C]
    * - call setReference() and setGain() after using analogReference()
+   * - combines start(), read() and stop()
    *
    * @param muxPos ADC_INPUTCTRL_MUXPOS_XXX_Val, use g_APinDescription[<Arduino pin>].ulADCChannelNumber to convert from Arduino pin
-   * @return ADC scaled result [V], see setReference()
+   * @return ADC scaled result [V] or [°C], also see setReference()
    */
   float read(uint8_t muxPosVal);
 
@@ -201,16 +253,22 @@ public:
   float toReferenceVoltage(float actualTemperature);
 
   /**
+   * covert duration to number of ADC clock half periods
+   * @param micros [µs], max. 32 periods of ADC clock
+   */
+  uint8_t durationToHalfPeriods(uint16_t micros);
+
+public:
+  /**
    * determine the position of highest set bit, equivalent to (int)log2(x)
    * @param x calling for x == 0 is not defined and will return 0
    */
   static uint8_t highestBitSet(uint8_t x);
 
   /**
-   * covert duration to number of ADC clock half periods
-   * @param micros [µs], max. 32 periods of ADC clock
+   * ADC interrupt handler
    */
-  uint8_t durationToHalfPeriods(uint16_t micros);
+  static void isrHandler();
 
 private:
   static float roomTemp; // [°C]
@@ -222,9 +280,12 @@ private:
   static bool temperaturCalibrationValuesLoaded;
 
 private:
+  bool runStandby = false;
+  bool singleShot = true;
   uint8_t clkGenId = UCHAR_MAX;
   uint8_t clkDiv = 1;
   uint8_t sampleLength = 0;
+  uint8_t muxPosVal = 0;
   uint16_t adcFullScale = 4095;
   uint32_t refSel = ADC_REFCTRL_REFSEL_INT1V;
   uint32_t lastRefSel = ULONG_MAX;
@@ -234,6 +295,8 @@ private:
   float refVal1V = 1.0; // [V]
   float inputScale = 1.0;
   float resultScale = 1.0;
+  float effectiveResultScale = 1.0;
+  void (*adcHandler)() = nullptr;
 };
 
 }
