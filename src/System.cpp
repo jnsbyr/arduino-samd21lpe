@@ -47,12 +47,19 @@ void System::setupClockGenOSCULP32K(uint8_t genId, int8_t div)
   while (GCLK->STATUS.reg & GCLK_STATUS_SYNCBUSY);
 }
 
-void System::setupClockGenOSC8M(uint8_t genId, int8_t div)
+void System::setupClockGenOSC8M(uint8_t genId, int8_t div, bool runStandby)
 {
   // ensure OSC8M is enabled and running at 8 MHz
   SYSCTRL->OSC8M.reg &= ~SYSCTRL_OSC8M_PRESC_Msk;
-  SYSCTRL->OSC8M.reg &= ~SYSCTRL_OSC8M_RUNSTDBY;
-  SYSCTRL->OSC8M.reg |= SYSCTRL_OSC8M_ENABLE;
+  if (runStandby)
+  {
+    SYSCTRL->OSC8M.reg |= SYSCTRL_OSC8M_RUNSTDBY;
+  }
+  else
+  {
+    SYSCTRL->OSC8M.reg &= ~SYSCTRL_OSC8M_RUNSTDBY;
+  }
+  SYSCTRL->OSC8M.reg |= SYSCTRL_OSC8M_ENABLE | SYSCTRL_OSC8M_ONDEMAND;
 
   // setup GCLK divider
   GCLK->GENDIV.reg = GCLK_GENDIV_ID(genId) |
@@ -64,7 +71,8 @@ void System::setupClockGenOSC8M(uint8_t genId, int8_t div)
                       GCLK_GENCTRL_GENEN |
                       GCLK_GENCTRL_SRC_OSC8M |
                       (div>=0? GCLK_GENCTRL_DIVSEL : 0) |
-                      (div>=0? GCLK_GENCTRL_IDC : 0);
+                      (div>=0? GCLK_GENCTRL_IDC : 0) |
+                      (runStandby? GCLK_GENCTRL_RUNSTDBY : 0);
   while (GCLK->STATUS.reg & GCLK_STATUS_SYNCBUSY);
 }
 
@@ -238,18 +246,12 @@ void System::reducePowerConsumption()
   }
 }
 
-/**
- * enable clock for PORT module
- */
 void System::enablePORT()
 {
   PM->AHBMASK.reg |= PM_AHBMASK_HPB1;
   PM->APBBMASK.reg |= PM_APBBMASK_PORT;
 }
 
-/**
- * @param mode 0..2 idle, 3 deep sleep
- */
 void System::setSleepMode(SleepMode mode)
 {
   if (mode < STANDBY)
@@ -266,9 +268,46 @@ void System::setSleepMode(SleepMode mode)
   __DSB();
 }
 
-/**
- * put MCU to sleep when returning from ISR
- */
+void System::sleep()
+{
+  bool standby = SCB->SCR & SCB_SCR_SLEEPDEEP_Msk;
+
+  // disable systick interrupt
+  if (standby)
+  {
+    disableSysTick();
+  }
+
+  // wait for interrupt
+  __DSB();
+  __WFI();
+
+  // reenable systick interrupt
+  if (standby)
+  {
+    enableSysTick();
+  }
+}
+
+void System::sleep(SleepMode mode)
+{
+  // disable systick interrupt
+  if (mode == STANDBY)
+  {
+    disableSysTick();
+  }
+
+  // wait for interrupt
+  setSleepMode(mode);
+  __WFI();
+
+  // reenable systick interrupt
+  if (mode == STANDBY)
+  {
+    enableSysTick();
+  }
+}
+
 void System::setSleepOnExitISR(bool on)
 {
   if (on)
@@ -278,30 +317,5 @@ void System::setSleepOnExitISR(bool on)
   else
   {
     SCB->SCR &= ~SCB_SCR_SLEEPONEXIT_Msk;
-  }
-}
-
-/**
- * put MCU to sleep until wakeup interrupt
- *
- * @see ArduinoLowPower.cpp ArduinoLowPowerClass::idle()
- */
-void System::sleep(SleepMode mode)
-{
-  // disable systick interrupt
-  if (mode == STANDBY)
-  {
-    disableSysTick();
-  }
-
-  // enter standby
-  setSleepMode(STANDBY);
-  __DSB();
-  __WFI();
-
-  // reenable systick interrupt
-  if (mode == STANDBY)
-  {
-    enableSysTick();
   }
 }

@@ -2,7 +2,7 @@
  *
  * SAMD21 Low Power Extensions
  *
- * file:     System.hpp
+ * file:     System.h
  * encoding: UTF-8
  * created:  03.02.2023
  *
@@ -72,11 +72,12 @@ public:
 
   /**
    * setup a generic clock generator with given divider
-   * with OSC8M as source
+   * with OSC8M as source with ONDEMAND option
    *
    * @param div divide OSC frequency by 2^(div + 1), -1 disables divider
+   * @param runStandby keep generator active in standby
    */
-  static void setupClockGenOSC8M(uint8_t genId, int8_t div = -1);
+  static void setupClockGenOSC8M(uint8_t genId, int8_t div = -1, bool runStandby = false);
 
   /**
    * disable a generic clock generator
@@ -135,21 +136,31 @@ public:
   static void enablePORT();
 
   /**
+   * configure sleep mode
+   *
    * @param mode 0..2 idle, 3 deep sleep
    */
   static void setSleepMode(SleepMode mode);
+
+  /**
+   * put MCU to sleep until wakeup interrupt, use setSleepMode() to configure sleep mode
+   */
+  static void sleep();
+
+  /**
+   * put MCU to sleep until wakeup interrupt
+   *
+   * @param mode 0..2 idle, 3 deep sleep
+   *
+   * @see ArduinoLowPower.cpp ArduinoLowPowerClass::idle()
+   */
+  static void sleep(SleepMode mode);
 
   /**
    * put MCU to sleep when returning from ISR
    */
   static void setSleepOnExitISR(bool on);
 
-  /**
-   * put MCU to sleep until wakeup interrupt
-   *
-   * @see ArduinoLowPower.cpp ArduinoLowPowerClass::idle()
-   */
-  static void sleep(SleepMode mode);
 };
 
 }
