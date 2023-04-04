@@ -11,11 +11,17 @@ RealTimeClock	KEYWORD1
 System	KEYWORD1
 TimerCounter	KEYWORD1
 
-SleepMode KEYWORD1
+SleepMode	KEYWORD1
+
+Prescaler	KEYWORD1
+Resolution	KEYWORD1
+
 
 #######################################
 # Methods and Functions (KEYWORD2)
 #######################################
+
+__WFI	KEYWORD2
 
 setupClockGenOSCULP32K	KEYWORD2
 setupClockGenOSC8M	KEYWORD2
@@ -30,6 +36,15 @@ setSleepMode	KEYWORD2
 setSleepOnExitISR	KEYWORD2
 sleep	KEYWORD2
 
+enable	KEYWORD2
+disable	KEYWORD2
+reenable	KEYWORD2
+start	KEYWORD2
+wait	KEYWORD2
+restart	KEYWORD2
+isStopped	KEYWORD2
+
+
 #######################################
 # Constants (LITERAL1)
 #######################################
@@ -38,3 +53,16 @@ IDLE0	LITERAL1
 IDLE1	LITERAL1
 IDLE2	LITERAL1
 STANDBY	LITERAL1
+
+DIV1	LITERAL1
+DIV2	LITERAL1
+DIV4	LITERAL1
+DIV8	LITERAL1
+DIV16	LITERAL1
+DIV64	LITERAL1
+DIV256	LITERAL1
+DIV1024	LITERAL1
+
+RES8	LITERAL1
+RES16	LITERAL1
+RES32	LITERAL1

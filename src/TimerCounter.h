@@ -124,13 +124,17 @@ public:
 
   /**
    * restart oneshot timer with previous setting for duration and callback
+   * @param duration [ms] optional, otherwise use duration from last call of start() or restart()
    */
-  void restart();
+  void restart(uint32_t duration = 0);
 
   /**
    * timer counter interrupt handler
    */
   static void isrHandler(uint8_t id);
+
+private:
+  void setCounterRegister(uint32_t duration);
 
 private:
   static TimerCounter* timerCounter[3];

@@ -189,18 +189,11 @@ void TimerCounter::disable()
   }
 }
 
-void TimerCounter::start(uint32_t duration, bool periodic, void (*callback)())
+void TimerCounter::setCounterRegister(uint32_t duration)
 {
-  if (tc)
+  if (duration > 0)
   {
-    tcHandler = callback;
-
-    // disable counter
-    tc->COUNT8.CTRLA.bit.ENABLE = 0;
-    while (tc->COUNT8.STATUS.bit.SYNCBUSY);
-
-    // set counter period value
-    uint64_t count = clkGenFrequency/clkDiv*duration/1000;
+    uint64_t count = max(clkGenFrequency/clkDiv*duration/1000, 1);
     switch (resolution)
     {
       case RES8:
@@ -220,6 +213,21 @@ void TimerCounter::start(uint32_t duration, bool periodic, void (*callback)())
         tc->COUNT16.CC[0].reg = (uint16_t)count;
         tc->COUNT16.COUNT.reg = 0;
     }
+  }
+}
+
+void TimerCounter::start(uint32_t duration, bool periodic, void (*callback)())
+{
+  if (tc)
+  {
+    tcHandler = callback;
+
+    // disable counter
+    tc->COUNT8.CTRLA.bit.ENABLE = 0;
+    while (tc->COUNT8.STATUS.bit.SYNCBUSY);
+
+    // set counter period value
+    setCounterRegister(duration);
 
     // set one-shot mode
     tc->COUNT8.CTRLBSET.bit.ONESHOT = periodic? 0 : 1;
@@ -250,10 +258,12 @@ bool TimerCounter::isStopped()
   }
 }
 
-void TimerCounter::restart()
+void TimerCounter::restart(uint32_t duration)
 {
   if (tc && tc->COUNT8.CTRLBSET.bit.ONESHOT)
   {
+    setCounterRegister(duration);
+
     tc->COUNT8.CTRLBSET.reg |= TC_CTRLBSET_CMD_RETRIGGER;
     while (tc->COUNT8.STATUS.bit.SYNCBUSY);
   }
