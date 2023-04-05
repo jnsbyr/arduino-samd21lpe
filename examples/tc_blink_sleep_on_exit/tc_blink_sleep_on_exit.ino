@@ -10,21 +10,33 @@ using namespace SAMD21LPE;
 
 TimerCounter timer;
 
+void timerInterruptHandler() {
+  // reenable SysTick after wakeup from STANDBY
+  System::enableSysTick();
+  
+  // toggle LED
+  if (digitalRead(PIN_LED3)) {
+    // LED on
+    digitalWrite(PIN_LED3, LOW);
+    timer.restart(50);
+  } else {
+    // LED off
+    digitalWrite(PIN_LED3, HIGH);    
+    timer.restart(1000);
+  }
+
+  // disable SysTick before entering STANDBY
+  System::disableSysTick();
+}
+
 void setupTimer() {
   // configure low power clock generator
   const byte GCLKGEN_ID_1K = 6;
   System::setupClockGenOSCULP32K(GCLKGEN_ID_1K, 4); // 2^(4+1) = 32 -> 1 kHz
 
-  // configure timer counter
+  // configure and start timer counter
   timer.enable(4, GCLKGEN_ID_1K, 1024, TimerCounter::DIV1, TimerCounter::RES16, true);
-
-  // select sleep mode STANDBY for timer wait
-  System::setSleepMode(System::STANDBY);
-}
-
-void sleep(uint32_t ms) {
-  timer.wait(ms);
-  //delay(ms);
+  timer.start(1, false, timerInterruptHandler);
 }
 
 void setup() {
@@ -34,12 +46,13 @@ void setup() {
 
   // setup timer counter
   setupTimer();
+
+  // select sleep mode STANDBY between ISR calls and enable sleep-on-exit mode
+  System::setSleepOnExitISR(true);
+  System::setSleepMode(System::STANDBY);  
 }
 
 void loop() {
-  digitalWrite(PIN_LED3, LOW);
-  sleep(50);
-
-  digitalWrite(PIN_LED3, HIGH);
-  sleep(1000);
+  // sleep-on-exit mode, do nothing here
+  __WFI();  
 }
