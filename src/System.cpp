@@ -175,6 +175,14 @@ void System::disableClock(uint8_t clkId)
   while (GCLK->STATUS.bit.SYNCBUSY);
 }
 
+bool System::isClockEnabled(uint8_t clkId)
+{
+  uint8_t* id = (uint8_t*)&GCLK->CLKCTRL;
+  *id = GCLK_CLKCTRL_ID(clkId);
+  return GCLK->CLKCTRL.bit.CLKEN;
+}
+
+
 void System::reducePowerConsumption()
 {
   // read core voltage

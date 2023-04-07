@@ -105,6 +105,11 @@ public:
   static void disableClock(uint8_t clkId);
 
   /**
+   * @return true if clock is enabled
+   */
+  static bool isClockEnabled(uint8_t clkId);
+
+  /**
    * startup power optimization:
    * - disable clocks of non essential modules
    * - use OSC8M instead of XOSC32K/DFLL48M depending on F_CPU setting
