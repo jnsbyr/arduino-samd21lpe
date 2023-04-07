@@ -111,7 +111,7 @@ public:
 
   /**
    * startup power optimization:
-   * - disable clocks of non essential modules
+   * - disable bus clocks of non essential modules
    * - use OSC8M instead of XOSC32K/DFLL48M depending on F_CPU setting
    * - disable unused generic clocks generators
    * - disable unused generic clocks
@@ -128,7 +128,7 @@ public:
   }
 
   /**
-   * disable SysTick, call in ISR before returing to standby
+   * disable SysTick, call in ISR before returning to standby
    */
   static void disableSysTick()
   {
@@ -136,9 +136,16 @@ public:
   }
 
   /**
-   * enable clock for PORT module
+   * enable bus clock for PORT module
    */
   static void enablePORT();
+
+  /**
+   * enable bus clock for EIC module
+   *
+   * note: must be called before call to attachInterrupt() after calling reducePowerConsumption()
+   */
+  static void enableEIC();
 
   /**
    * configure sleep mode

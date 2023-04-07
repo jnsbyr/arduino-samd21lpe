@@ -101,7 +101,7 @@ void System::enableClock(uint8_t clkId, uint8_t clkGenId)
       break;
 
     case GCM_EIC:
-      PM->APBAMASK.reg |= PM_APBAMASK_EIC;
+      enableEIC();
       break;
 
     // AHB + APB B
@@ -258,6 +258,11 @@ void System::enablePORT()
 {
   PM->AHBMASK.reg |= PM_AHBMASK_HPB1;
   PM->APBBMASK.reg |= PM_APBBMASK_PORT;
+}
+
+void System::enableEIC()
+{
+  PM->APBAMASK.reg |= PM_APBAMASK_EIC;
 }
 
 void System::setSleepMode(SleepMode mode)
