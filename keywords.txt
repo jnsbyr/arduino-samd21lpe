@@ -37,6 +37,7 @@ reducePowerConsumption	KEYWORD2
 enableSysTick	KEYWORD2
 disableSysTick	KEYWORD2
 enablePORT	KEYWORD2
+enableEIC	KEYWORD2
 setSleepMode	KEYWORD2
 setSleepOnExitISR	KEYWORD2
 sleep	KEYWORD2
