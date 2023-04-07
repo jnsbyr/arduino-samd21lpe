@@ -15,7 +15,7 @@ void setupTimer() {
   const byte GCLKGEN_ID_1K = 6;
   System::setupClockGenOSCULP32K(GCLKGEN_ID_1K, 4); // 2^(4+1) = 32 -> 1 kHz
 
-  // configure timer counter
+  // configure timer counter to run at 1 kHz and to continue in standby
   timer.enable(4, GCLKGEN_ID_1K, 1024, TimerCounter::DIV1, TimerCounter::RES16, true);
 
   // select sleep mode STANDBY for timer wait
@@ -28,7 +28,7 @@ void sleep(uint32_t ms) {
 }
 
 void setup() {
-  // disable non essential MCU modules (including USB)
+  // disable non essential MCU modules (incl. USB)
   System::reducePowerConsumption();
   System::enablePORT();
 
