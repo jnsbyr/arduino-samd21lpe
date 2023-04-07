@@ -40,28 +40,32 @@ Analog2DigitalConverter& Analog2DigitalConverter::instance()
 
 void Analog2DigitalConverter::enable(uint8_t clkGenId, uint32_t clkGenFrequency, Prescaler clkDiv, bool runStandby)
 {
-  this->clkGenId = clkGenId;
-  System::enableClock(GCM_ADC, clkGenId);
-
-  /* setup ADC clock to 0.75 .. 1 MHz
-  // determine clock divider to make ADC clock run around 1 MHz ()
-  uint8_t optClkDiv = clkGenFrequency/1000000UL;
-  uint8_t intLog2 = highestBitSet(optClkDiv);
-  if (optClkDiv != 1 << intLog2)
+  uint32_t adcFrequency = clkGenFrequency/(1<<(clkDiv + 2));
+  if (adcFrequency >= 30000 && adcFrequency <= 2100000)
   {
-    // round up to get higher divider value / lower ADC frequency
-    intLog2++;
+    this->clkGenId = clkGenId;
+    System::enableClock(GCM_ADC, clkGenId);
+
+    /* setup ADC clock to 0.75 .. 1 MHz
+    // determine clock divider to make ADC clock run around 1 MHz ()
+    uint8_t optClkDiv = clkGenFrequency/1000000UL;
+    uint8_t intLog2 = highestBitSet(optClkDiv);
+    if (optClkDiv != 1 << intLog2)
+    {
+      // round up to get higher divider value / lower ADC frequency
+      intLog2++;
+    }
+    this->clkDiv = intLog2 >= 9 ? 7 : intLog2 > 2? intLog2 - 2 : 0; // min. div is 4
+    */
+
+    this->clkDiv = clkDiv;
+    this->adcFrequency = adcFrequency;
+    this->runStandby = runStandby;
+
+    setReference(REF_INT1V, 1.0f);
+    setGain(GAIN_1);
+    setSampling(durationToHalfPeriods(2), 0);
   }
-  this->clkDiv = intLog2 >= 9 ? 7 : intLog2 > 2? intLog2 - 2 : 0; // min. div is 4
-  */
-
-  this->clkDiv = clkDiv;
-  this->adcFrequency = clkGenFrequency/(1<<(clkDiv + 2));
-  this->runStandby = runStandby;
-
-  setReference(REF_INT1V, 1.0f);
-  setGain(GAIN_1);
-  setSampling(durationToHalfPeriods(2), 0);
 }
 
 void Analog2DigitalConverter::reenable()
@@ -77,24 +81,30 @@ void Analog2DigitalConverter::disable()
   System::disableClock(GCM_ADC);
 }
 
-void Analog2DigitalConverter::setSampling(uint8_t sampleTime, uint8_t averageCount, bool singleShot)
+void Analog2DigitalConverter::setSampling(uint8_t sampleTime, uint8_t averageCount, bool freeRun)
 {
-  this->sampleLength = ADC_SAMPCTRL_SAMPLEN(sampleTime <= 1? 0 : sampleTime > 64? 63 : sampleTime - 1);
-  this->singleShot = singleShot;
+  this->sampleLength = ADC_SAMPCTRL_SAMPLEN(sampleTime <= 1? 0 : sampleTime >= 64? 63 : sampleTime - 1);
+  this->freeRun = freeRun;
 
   uint8_t adjustResult = 0;
   if (averageCount < 4)
   {
+    // average 1 .. 8 samples -> divide by 1 .. 8
     adjustResult = averageCount;
   }
   else
   {
+    // average 16 .. 1024 samples -> divide by 16
     adjustResult = 4;
+    if (averageCount > 10)
+    {
+      averageCount = 10;
+    }
   }
 
   ADC->CTRLB.reg = ADC_CTRLB_PRESCALER(clkDiv) |
                    (averageCount > 0? ADC_CTRLB_RESSEL_16BIT : ADC_CTRLB_RESSEL_12BIT) |
-                   (singleShot? 0 : ADC_CTRLB_FREERUN);
+                   (freeRun? ADC_CTRLB_FREERUN : 0);
   ADC->AVGCTRL.reg = ADC_AVGCTRL_SAMPLENUM(averageCount) | ADC_AVGCTRL_ADJRES(adjustResult);
 
   // result resolution is 12 bit, even when averaging is used
@@ -197,12 +207,15 @@ void Analog2DigitalConverter::start(uint8_t muxPosVal, void (*callback)())
   switch (muxPosVal)
   {
     case ADC_INPUTCTRL_MUXPOS_TEMP_Val:
+    {
       SYSCTRL->VREF.bit.TSEN = 1;
-      sampleLength = ADC_SAMPCTRL_SAMPLEN(63); // min. 48 µs required, set to max. value
+      uint8_t halfPeriods = durationToHalfPeriods(15); // temperature requires min. 15 µs sample length
+      sampleLength = ADC_SAMPCTRL_SAMPLEN(halfPeriods <= 1? 0 : halfPeriods >= 64? 63 : halfPeriods - 1);
       refSel = ADC_REFCTRL_REFSEL_INT1V;
       gain = ADC_INPUTCTRL_GAIN_1X;
       effectiveResultScale = 1.0f/adcFullScale; // use Vref = 1.0 V for compatiblity with temperature conversion algorithm
       break;
+    }
 
     case ADC_INPUTCTRL_MUXPOS_BANDGAP_Val:
       SYSCTRL->VREF.bit.BGOUTEN = 1;
@@ -224,7 +237,7 @@ void Analog2DigitalConverter::start(uint8_t muxPosVal, void (*callback)())
       effectiveResultScale = this->resultScale;
   }
 
-  // set minimum sample length
+  // set sample length
   ADC->SAMPCTRL.reg = sampleLength;
 
   // select ADC single ended input and set gain
@@ -241,6 +254,9 @@ void Analog2DigitalConverter::start(uint8_t muxPosVal, void (*callback)())
     NVIC_ClearPendingIRQ(ADC_IRQn);
     NVIC_SetPriority(ADC_IRQn, 0x00);
     NVIC_EnableIRQ(ADC_IRQn);
+
+    // enable result ready interrupt
+    ADC->INTENSET.reg = ADC_INTENCLR_RESRDY;
 
     // update reference
     if (refSel != lastRefSel)
@@ -287,8 +303,15 @@ void Analog2DigitalConverter::stop()
 
 float Analog2DigitalConverter::read(uint8_t muxPosVal)
 {
+  // enable ADC module and clock
+  bool clockWasDisabled = !System::isClockEnabled(GCM_ADC);
+  if (clockWasDisabled)
+  {
+    reenable();
+  }
+
   // temporarily disable free run
-  if (!singleShot)
+  if (freeRun)
   {
     ADC->CTRLB.reg &= ~ADC_CTRLB_FREERUN;
   }
@@ -320,9 +343,15 @@ float Analog2DigitalConverter::read(uint8_t muxPosVal)
   stop();
 
   // reenable free run
-  if (!singleShot)
+  if (freeRun)
   {
     ADC->CTRLB.reg |= ADC_CTRLB_FREERUN;
+  }
+
+  // disable ADC module and clock
+  if (clockWasDisabled)
+  {
+    disable();
   }
 
   return result;
@@ -381,7 +410,7 @@ uint8_t Analog2DigitalConverter::highestBitSet(uint8_t x)
 uint8_t Analog2DigitalConverter::durationToHalfPeriods(uint16_t micros)
 {
   uint32_t halfPeriods = adcFrequency*2*micros/1000000U;
-  return halfPeriods > 63? 63 : halfPeriods;
+  return halfPeriods >= 64? 64 : halfPeriods;
 }
 
 void Analog2DigitalConverter::isrHandler()
@@ -389,13 +418,13 @@ void Analog2DigitalConverter::isrHandler()
   Analog2DigitalConverter& adc = Analog2DigitalConverter::instance();
   if (adc.adcHandler)
   {
-    ADC->INTFLAG.bit.RESRDY = 1;
     if (adc.lastRefSel != adc.refSel)
     {
-      // discard 1st result after ref change and start new conversion
+      // discard 1st result after ref change
       adc.lastRefSel = adc.refSel;
-      if (adc.singleShot)
+      if (!adc.freeRun)
       {
+        // single shot mode, explictly start 2nd conversion
         ADC->SWTRIG.bit.START = 1;
       }
     }
@@ -404,6 +433,9 @@ void Analog2DigitalConverter::isrHandler()
       // conversion result available
       adc.adcHandler();
     }
+
+    // clear requested interrupt flags
+    ADC->INTFLAG.reg = ADC->INTENSET.reg;
   }
 }
 

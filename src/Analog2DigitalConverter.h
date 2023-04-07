@@ -44,7 +44,7 @@ namespace SAMD21LPE
  *
  * Arduino core does not support:
  * - reading internal voltages
- * - reading core temperature
+ * - reading internal temperature
  * - variable input gain
  * - variable sampling length
  * - hardware averaging
@@ -121,7 +121,7 @@ public:
    *
    * @param clkGenId GCLKGEN ID 0..7
    * @param clkGenFrequency frequency of GCLKGEN [Hz]
-   * @param clkDiv GCLK prescaler 0..7, 2^(clkDiv + 2), ADC clock must be at or below 2.1 MHz
+   * @param clkDiv GCLK prescaler 0..7, 2^(clkDiv + 2), ADC clock must be between 30 kHz and 2.1 MHz
    * @param runStandby keep ADC active in standby
    */
   void enable(uint8_t clkGenId, uint32_t clkGenFrequency, Prescaler clkDiv, bool runStandby = false);
@@ -141,17 +141,18 @@ public:
    *
    * note: ADC must be enabled
    *
-   * @param sampleTime 1..64 multiple of ADC clock half periods, max. 32 ADC clock periods, use durationToHalfPeriods() to convert from [µs]
+   * @param sampleTime 1..64 multiple of ADC clock half periods, max. 32 ADC clock periods, use durationToHalfPeriods() to convert from [µs], ignored when reading internal temperature
    * @param averageCount 0..10 2^averageCount
-   * @param singleShot if true (default) start() will initiate single conversion, otherwise continuous conversion
+   * @param freeRun if false (default) start() will initiate single conversion, otherwise continuous conversion
    */
-  void setSampling(uint8_t sampleTime, uint8_t averageCount, bool singleShot = true);
+  void setSampling(uint8_t sampleTime, uint8_t averageCount = 0, bool freeRun = false);
 
   /**
    * set reference voltage
    *
    * note:
    * - will be applied by start() or read()
+   * - ignored when reading internal sources
    *
    * @param type reference voltage source, default REF_INT1V
    * @param voltage reference voltage [V], default 1.0 V, can also be used to scale result of read()
@@ -164,6 +165,7 @@ public:
    *
    * note:
    * - will be applied by start() or read()
+   * - ignored when reading internal sources
    *
    * @param gain input gain, default 1.0
    */
@@ -182,14 +184,15 @@ public:
    * notes:
    * - single ended measurement from pin or internal source
    * - singleshot conversion
-   * - use enable() to enable ADC
+   * - use enable() to setup ADC
    * - the following internal sources are supported:
    *     ADC_INPUTCTRL_MUXPOS_SCALEDCOREVCC_Val: internal MCU voltage (~1.2 V)
    *     ADC_INPUTCTRL_MUXPOS_SCALEDIOVCC_Val:   external MCU input voltage
    *     ADC_INPUTCTRL_MUXPOS_BANDGAP_Val:       internal bandgap voltage (~1.1 V)
-   *     ADC_INPUTCTRL_MUXPOS_TEMP_Val:          core temperature [°C]
+   *     ADC_INPUTCTRL_MUXPOS_TEMP_Val:          internal temperature [°C]
    * - use read() to retrieve conversion result from callback
    * - use stop() to disable ADC
+   * - use disable() to disable ADC module
    *
    * @param muxPos ADC_INPUTCTRL_MUXPOS_XXX_Val, use g_APinDescription[<Arduino pin>].ulADCChannelNumber to convert from Arduino pin
    * @param callback function to call at ADC interrupt, optional
@@ -201,7 +204,6 @@ public:
    *
    * notes:
    * - use to retrieve scaled conversion result when conversion is completed (e.g. ready interrupt)
-   * - use enable() to enable ADC
    * - use start() to initiate conversion
    *
    * @return ADC scaled result [V] or [°C], also see setReference()
@@ -219,14 +221,14 @@ public:
    * notes:
    * - single ended measurement from pin or internal source
    * - singleshot conversion
-   * - use enable() to enable ADC
+   * - use enable() to setup ADC
    * - the following internal sources are supported:
    *     ADC_INPUTCTRL_MUXPOS_SCALEDCOREVCC_Val: internal MCU voltage (~1.2 V)
    *     ADC_INPUTCTRL_MUXPOS_SCALEDIOVCC_Val:   external MCU input voltage
    *     ADC_INPUTCTRL_MUXPOS_BANDGAP_Val:       internal bandgap voltage (~1.1 V)
-   *     ADC_INPUTCTRL_MUXPOS_TEMP_Val:          core temperature [°C]
+   *     ADC_INPUTCTRL_MUXPOS_TEMP_Val:          internal temperature [°C]
    * - call setReference() and setGain() after using analogReference()
-   * - combines start(), read() and stop()
+   * - combines reenable(), start(), read(), stop() and disable()
    *
    * @param muxPos ADC_INPUTCTRL_MUXPOS_XXX_Val, use g_APinDescription[<Arduino pin>].ulADCChannelNumber to convert from Arduino pin
    * @return ADC scaled result [V] or [°C], also see setReference()
@@ -253,8 +255,9 @@ public:
   float toReferenceVoltage(float actualTemperature);
 
   /**
-   * covert duration to number of ADC clock half periods
+   * convert duration to number of ADC clock half periods
    * @param micros [µs], max. 32 periods of ADC clock
+   * @return 0..64 ADC clock half periods
    */
   uint8_t durationToHalfPeriods(uint16_t micros);
 
@@ -281,7 +284,7 @@ private:
 
 private:
   bool runStandby = false;
-  bool singleShot = true;
+  bool freeRun = true;
   uint8_t clkGenId = UCHAR_MAX;
   uint8_t clkDiv = 1;
   uint8_t sampleLength = 0;
