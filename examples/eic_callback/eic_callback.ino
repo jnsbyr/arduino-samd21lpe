@@ -7,10 +7,11 @@
 #include <System.h>
 using namespace SAMD21LPE;
 
+#define EXT_INT_PIN PIN_A0
 
 void externalInterruptHandler() {
   // mirror state of A0/D0 to LED3
-  digitalWrite(PIN_LED3, digitalRead(PIN_A0));
+  digitalWrite(PIN_LED3, digitalRead(EXT_INT_PIN));
 }
 
 void setupEIC() {
@@ -21,8 +22,8 @@ void setupEIC() {
   System::enableEIC();
 
   // enable external interrupt on pin A0/D0
-  pinMode(PIN_A0, INPUT_PULLUP);
-  attachInterrupt(PIN_A0, externalInterruptHandler, CHANGE);
+  pinMode(EXT_INT_PIN, INPUT_PULLUP);
+  attachInterrupt(EXT_INT_PIN, externalInterruptHandler, CHANGE);
 
   // configure low power clock generator to run at 1 kHz
   const byte GCLKGEN_ID_1K = 6;
