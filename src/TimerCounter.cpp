@@ -30,7 +30,7 @@
 using namespace SAMD21LPE;
 
 
-bool TimerCounter::enable(uint8_t id, uint8_t clkGenId, uint32_t clkGenFrequency, Prescaler clkDiv, Resolution resolution, bool runStandby)
+bool TimerCounter::enable(uint8_t id, uint8_t clkGenId, uint32_t clkGenFrequency, Prescaler clkDiv, Resolution resolution, bool runStandby, uint32_t durationScale)
 {
   if (id >= 3 && id <= 5 && (resolution == RES8 || resolution == RES16 || (id == 4 && resolution == RES32)))
   {
@@ -38,6 +38,7 @@ bool TimerCounter::enable(uint8_t id, uint8_t clkGenId, uint32_t clkGenFrequency
     this->clkGenId = clkGenId;
     this->clkGenFrequency = clkGenFrequency;
     this->resolution = resolution;
+    this->durationScale = durationScale;
 
     switch (clkDiv)
     {
@@ -189,11 +190,24 @@ void TimerCounter::disable()
   }
 }
 
+uint32_t TimerCounter::toClockTicks(uint32_t duration)
+{
+  uint64_t count = durationScale? max((uint64_t)clkGenFrequency/clkDiv*duration/durationScale, 1U) : duration;
+  if (count >= ULONG_MAX)
+  {
+    return ULONG_MAX;
+  }
+  else
+  {
+    return count;
+  }
+}
+
 void TimerCounter::setCounterRegister(uint32_t duration)
 {
   if (duration > 0)
   {
-    uint64_t count = max(clkGenFrequency/clkDiv*duration/1000, 1);
+    uint32_t count = toClockTicks(duration);
     switch (resolution)
     {
       case RES8:
@@ -203,7 +217,6 @@ void TimerCounter::setCounterRegister(uint32_t duration)
         break;
 
       case RES32:
-        if (count > ULONG_MAX) count = ULONG_MAX;
         tc->COUNT32.CC[0].reg = (uint32_t)count;
         tc->COUNT32.COUNT.reg = 0;
         break;
@@ -237,6 +250,33 @@ void TimerCounter::start(uint32_t duration, bool periodic, void (*callback)())
     tc->COUNT8.CTRLA.bit.ENABLE = 1;
     while (tc->COUNT8.STATUS.bit.SYNCBUSY);
   }
+}
+
+uint32_t TimerCounter::getElapsed()
+{
+  // request read of counter register
+  tc->COUNT8.READREQ.reg = TC_READREQ_RREQ | TC_READREQ_ADDR(TC_COUNT8_COUNT_OFFSET);
+  while (tc->COUNT8.STATUS.bit.SYNCBUSY);
+
+  uint64_t result;
+  switch (resolution)
+  {
+    case RES8:
+      result = tc->COUNT8.COUNT.reg;
+      break;
+
+    case RES32:
+      result = tc->COUNT32.COUNT.reg;
+      break;
+
+    default:
+      result = tc->COUNT16.COUNT.reg;
+  }
+
+  // convert counter value to duration
+  result = durationScale? result*durationScale*clkDiv/clkGenFrequency : result;
+
+  return result < ULONG_MAX? result : ULONG_MAX;
 }
 
 void TimerCounter::wait(uint32_t duration)

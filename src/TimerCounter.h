@@ -82,17 +82,21 @@ public:
    * enable TC module(s), configure and enable TC generic clock, configure TC and enable IRQ
    *
    * notes:
-   * - timer will not be started, use start()
+   * - timer will not be started automatically, use start()
    * - when using sleep mode, timer interrupt will wakeup MCU
+   * - adjust clkGenFrequency and clkDiv to provide the required timing resolution and jitter
+   * - for durationScale > 0 the counter value is calculated using unsigned 64 bits
+   *   integer arithmetics: counterValue = clkGenFrequency/clkDiv*duration/durationScale
    *
    * @param id timer counter ID 3..5
    * @param clkGenId GCLKGEN ID 0..7
    * @param clkGenFrequency frequency of GCLKGEN [Hz]
    * @param clkDiv GCLK prescaler 0..7
-   * @param resolution counter resolution [bits] 8, 16, TC4: 32
-   * @param runStandby keep timer active in standby
+   * @param resolution counter resolution [bits] 8, 16, TC4: 32 by using TC5
+   * @param runStandby keep timer active in standby (default: disabled)
+   * @param durationScale unit/scale of duration 0: clock ticks, 1: 1 s, 1000: 1 ms (default), 1000000: 1 µs
    */
-  bool enable(uint8_t id, uint8_t clkGenId, uint32_t clkGenFrequency, Prescaler clkDiv, Resolution resolution, bool runStandby = false);
+  bool enable(uint8_t id, uint8_t clkGenId, uint32_t clkGenFrequency, Prescaler clkDiv, Resolution resolution, bool runStandby = false, uint32_t durationScale = 1000U);
 
   /**
    * reenable TC module(s) and TC generic clock
@@ -105,15 +109,28 @@ public:
   void disable();
 
   /**
+   * convert duration to clock ticks
+   * @param duration timer duration
+   */
+  uint32_t toClockTicks(uint32_t duration);
+
+  /**
    * start timer
-   * @param duration [ms]
-   * @param periodc single if false, periodic if true
+   * @param duration timer duration
+   * @param periodic single if false, periodic if true
    * @param callback function to call at timer interrupt, optional
    */
   void start(uint32_t duration, bool periodic = false, void (*callback)() = nullptr);
 
   /**
-   * start oneshot timer and wait for completion, blocking using configured sleep mode, see System::setSleepMode()
+   * get elapsed duration
+   * @return elapsed timer duration since calling start()
+   */
+  uint32_t getElapsed();
+
+  /**
+   * start oneshot timer and wait for completion, blocking, using configured sleep mode, see System::setSleepMode()
+   * @param duration timer/wait duration
    */
   void wait(uint32_t duration);
 
@@ -124,7 +141,7 @@ public:
 
   /**
    * restart oneshot timer with previous setting for duration and callback
-   * @param duration [ms] optional, otherwise use duration from last call of start() or restart()
+   * @param duration timer duration, optional, otherwise use duration from last call of start() or restart()
    */
   void restart(uint32_t duration = 0);
 
@@ -143,8 +160,9 @@ private:
   bool interrupted = false;
   uint8_t id;
   uint8_t clkGenId = UCHAR_MAX;
-  uint64_t clkGenFrequency; // [Hz]
   uint16_t clkDiv;          // 1..1024
+  uint32_t durationScale;   // 0, 1, 1000, 1000000
+  uint32_t clkGenFrequency; // [Hz]
   Resolution resolution;    // 8, 16, 32
   IRQn_Type irq;
   Tc* tc = nullptr;
