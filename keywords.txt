@@ -45,9 +45,11 @@ sleep	KEYWORD2
 enable	KEYWORD2
 disable	KEYWORD2
 reenable	KEYWORD2
+toClockTicks	KEYWORD2
 start	KEYWORD2
 wait	KEYWORD2
 restart	KEYWORD2
+getElapsed	KEYWORD2
 isStopped	KEYWORD2
 
 setSampling	KEYWORD2
@@ -60,6 +62,9 @@ toTemperature	KEYWORD2
 toReferenceVoltage	KEYWORD2
 durationToHalfPeriods	KEYWORD2
 highestBitSet	KEYWORD2
+
+setTimer	KEYWORD2
+setElapsed	KEYWORD2
 
 
 #######################################
