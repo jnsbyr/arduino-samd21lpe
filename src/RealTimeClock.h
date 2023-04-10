@@ -65,11 +65,18 @@ public:
    *
    * @param clkGenId GCLKGEN ID 0..7
    * @param clkGenFrequency frequency of GCLKGEN [Hz]
+   * @param clkDiv GCLK prescaler 2^clkDiv 0..10
+   * @param durationScale unit/scale of duration 0: clock ticks, 1: 1 s, 1000: 1 ms (default), 1000000: 1 µs
    *
-   * @see RTCZero.cpp RTCZero::begin(bool)
-   * @see RTCZero.cpp RTCZero::configureClock()
+   * notes:
+   * - timer resolution depends on clock frequency and divider setup: 2^clkDiv/clkGenFrequency
+   * - counter will be zeroed and started
+   * - counter is periodic
+   * - adjust clkGenFrequency and clkDiv to provide the required timing resolution and jitter
+   * - for durationScale > 0 the counter value is calculated using unsigned 64 bits
+   *   integer arithmetics: counterValue = clkGenFrequency/clkDiv*duration/durationScale
    */
-  void enable(uint8_t clkGenId, uint32_t clkGenFrequency);
+  void enable(uint8_t clkGenId, uint32_t clkGenFrequency, uint8_t clkDiv = 10, uint32_t durationScale = 1000U);
 
   /**
    * disable RTC module and RTC generic clock
@@ -77,19 +84,36 @@ public:
   void disable();
 
   /**
-   * set timer period
-   * @param millis [ms]
-   *
-   * note: only 1 second resolution available due to clock divider setup
+   * convert duration to clock ticks
+   * @param duration timer duration
    */
-  void setTimer(uint32_t millis, void (*callback)() = nullptr);
+  uint32_t toClockTicks(uint32_t duration);
+
+  /**
+   * set timer period
+   * @param duration timer period
+   */
+  void setTimer(uint32_t duration, void (*callback)() = nullptr);
+
+  /**
+   * set counter value
+   * @param duration counter value
+   */
+  void setElapsed(uint32_t duration);
+
+  /**
+   * get counter value
+   * @return elapsed duration
+   */
+  uint32_t getElapsed();
 
 public:
   static void (*rtcHandler)();
 
 private:
-  uint64_t clkGenFrequency = 1024; // [Hz]
-  uint16_t clkDiv = 1024; // 1..1024
+  uint16_t clkDiv = 0;          // 1..1024
+  uint32_t clkGenFrequency = 0; // [Hz]
+  uint32_t durationScale;       // 0, 1, 1000, 1000000
 };
 
 }
