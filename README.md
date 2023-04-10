@@ -81,7 +81,7 @@ MCU boards are typically created with a focus on features and not on low power o
 The power consumption of the Seed Studio XIAO SAMD21 can be reduced significantly to values that are more or less identical to the datasheet specifications by the following hardware changes:
 
 - cut PCB trace to power LED to save approximately 2 mA
-- lift voltage regulator output pin from board when directly powering with a battery to prevent reverse current of approximately 14 µA (requires removing RF shield)
+- lift voltage regulator output pin from board when directly powering via pin 3V3 to prevent reverse current of approximately 14 µA (requires removing RF shield)
 
 ![Seed Studio XIAO SAMD21 without RF shield](assets/XIAO-SAMD21-open.jpg "Seed Studio XIAO SAMD21 without RF shield")
 
