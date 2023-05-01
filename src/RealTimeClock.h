@@ -61,25 +61,29 @@ private:
 public:
 
   /**
-   * setup RTC as 32 bit counter (mode 0)
+   * setup RTC as 32 bit counter (mode 0) and start counter
    *
    * @param clkGenId GCLKGEN ID 0..7
    * @param clkGenFrequency frequency of GCLKGEN [Hz]
    * @param clkDiv GCLK prescaler 2^clkDiv 0..10
    * @param durationScale unit/scale of duration 0: clock ticks, 1: 1 s, 1000: 1 ms (default), 1000000: 1 µs
+   * @param clearOnTimer zero counter when timer expires, default disabled
+   * @param irqPriority 0 (highest) .. 3 (lowest, default), must be 3 to use SysTick dependent operations in ISR
    *
    * notes:
    * - timer resolution depends on clock frequency and divider setup: 2^clkDiv/clkGenFrequency
    * - counter will be zeroed and started
-   * - counter is periodic
+   * - counter will overflow with clearOnTimer = false or will be zeroed periodically with clearOnTimer = true
+   * - with a clock frequency of 1 kHz the counter will overflow after 49.7 days
    * - adjust clkGenFrequency and clkDiv to provide the required timing resolution and jitter
-   * - for durationScale > 0 the counter value is calculated using unsigned 64 bits
+   * - note that a low clock frequency also increases the execution times of all operations significantly (e.g. 6 ms for a counter read @ 1kHz)
+   * - for durationScale > 0 the raw counter value is calculated using unsigned 64 bits
    *   integer arithmetics: counterValue = clkGenFrequency/clkDiv*duration/durationScale
    */
-  void enable(uint8_t clkGenId, uint32_t clkGenFrequency, uint8_t clkDiv = 10, uint32_t durationScale = 1000U);
+  void enable(uint8_t clkGenId, uint32_t clkGenFrequency, uint8_t clkDiv = 10, uint32_t durationScale = 1000U, bool clearOnTimer = false, uint8_t irqPriority = 3);
 
   /**
-   * disable RTC module and RTC generic clock
+   * disable RTC module and RTC generic clock (will stop counter)
    */
   void disable();
 
@@ -87,33 +91,53 @@ public:
    * convert duration to clock ticks
    * @param duration timer duration
    */
-  uint32_t toClockTicks(uint32_t duration);
+  uint32_t toClockTicks(uint32_t duration) const;
 
   /**
-   * set timer period
-   * @param duration timer period
+   * start timer
+   * @param duration timer duration
+   * @param periodic single if false, periodic if true
+   * @param callback function to call at timer interrupt, optional
    */
-  void setTimer(uint32_t duration, void (*callback)() = nullptr);
+  void start(uint32_t duration, bool periodic = false, void (*callback)() = nullptr);
 
   /**
-   * set counter value
+   * cancel timer (counter will continue)
+   */
+  void cancel();
+
+  /**
+   * set scaled counter value
    * @param duration counter value
    */
   void setElapsed(uint32_t duration);
 
   /**
-   * get counter value
+   * get scaled counter value
    * @return elapsed duration
    */
-  uint32_t getElapsed();
+  uint32_t getElapsed() const;
 
-public:
-  static void (*rtcHandler)();
+  /**
+   * get raw counter value
+   * @return elapsed duration
+   */
+  uint32_t getCounter() const;
+
+  /**
+   * RTC interrupt handler
+   */
+  void isrHandler();
 
 private:
   uint16_t clkDiv = 0;          // 1..1024
   uint32_t clkGenFrequency = 0; // [Hz]
-  uint32_t durationScale;       // 0, 1, 1000, 1000000
+  uint32_t durationScale = 0;   // 0, 1, 1000, 1000000
+  uint32_t durationTicks = 0;
+  uint32_t lastCounter = 0;
+  bool clearOnTimer = false;
+  bool periodic = false;
+  void (*rtcHandler)() = nullptr;
 };
 
 }

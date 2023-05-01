@@ -36,7 +36,7 @@ RealTimeClock& RealTimeClock::instance()
   return rtc_;
 }
 
-void RealTimeClock::enable(uint8_t clkGenId, uint32_t clkGenFrequency, uint8_t clkDiv, uint32_t durationScale)
+void RealTimeClock::enable(uint8_t clkGenId, uint32_t clkGenFrequency, uint8_t clkDiv, uint32_t durationScale, bool clearOnTimer, uint8_t irqPriority)
 {
   if (clkDiv <= 10)
   {
@@ -44,6 +44,7 @@ void RealTimeClock::enable(uint8_t clkGenId, uint32_t clkGenFrequency, uint8_t c
     this->clkGenFrequency = clkGenFrequency;
     this->clkDiv = 1<<clkDiv;
     this->durationScale = durationScale;
+    this->clearOnTimer = clearOnTimer;
 
     // set GCLK as source for RTC
     System::enableClock(GCM_RTC, clkGenId);
@@ -52,16 +53,16 @@ void RealTimeClock::enable(uint8_t clkGenId, uint32_t clkGenFrequency, uint8_t c
     RTC->MODE0.CTRL.reg |= RTC_MODE0_CTRL_SWRST;
     while (RTC->MODE0.CTRL.bit.SWRST);
 
-    // setup RTC for mode 0, clear on match (periodic timer), no continuous read
+    // setup RTC for mode 0, no continuous read, optionally clear on match (periodic timer)
     RTC->MODE0.READREQ.reg &= ~RTC_READREQ_RCONT;
     RTC->MODE0.CTRL.reg = (uint16_t)(RTC_MODE0_CTRL_MODE_COUNT32 |
                                      RTC_MODE0_CTRL_PRESCALER(clkDiv) |
-                                     RTC_MODE0_CTRL_MATCHCLR);
+                                     (clearOnTimer? RTC_MODE0_CTRL_MATCHCLR : 0));
 
     // enable RTC interrupt
     NVIC_DisableIRQ(RTC_IRQn);
     NVIC_ClearPendingIRQ(RTC_IRQn);
-    NVIC_SetPriority(RTC_IRQn, 0x00);
+    NVIC_SetPriority(RTC_IRQn, min(irqPriority, (1 << __NVIC_PRIO_BITS) - 1));
     NVIC_EnableIRQ(RTC_IRQn);
 
     // enable RTC
@@ -84,7 +85,7 @@ void RealTimeClock::disable()
   NVIC_ClearPendingIRQ(RTC_IRQn);
 }
 
-uint32_t RealTimeClock::toClockTicks(uint32_t duration)
+uint32_t RealTimeClock::toClockTicks(uint32_t duration) const
 {
   uint64_t count = durationScale? max((uint64_t)clkGenFrequency/clkDiv*duration/durationScale, 1U) : duration;
   if (count >= ULONG_MAX)
@@ -97,16 +98,26 @@ uint32_t RealTimeClock::toClockTicks(uint32_t duration)
   }
 }
 
-void RealTimeClock::setTimer(uint32_t duration, void (*callback)())
+void RealTimeClock::start(uint32_t duration, bool periodic, void (*callback)())
 {
+  this->periodic = periodic;
   rtcHandler = callback;
 
   // set counter compare value
-  RTC->MODE0.COMP[0].reg = toClockTicks(duration);
-
-  // enable counter compare match interrupt
-  RTC->MODE0.INTENSET.reg = RTC_MODE0_INTENSET_CMP0;
+  durationTicks = toClockTicks(duration);
+  lastCounter = durationTicks + (clearOnTimer? 0 : getCounter());
+  RTC->MODE0.COMP[0].reg = lastCounter;
   while (RTC->MODE0.STATUS.bit.SYNCBUSY);
+
+  // clear and enable counter compare match interrupt
+  RTC->MODE0.INTFLAG.reg = RTC_MODE0_INTFLAG_CMP0;
+  RTC->MODE0.INTENSET.reg = RTC_MODE0_INTENSET_CMP0;
+}
+
+void RealTimeClock::cancel()
+{
+  RTC->MODE0.INTENCLR.reg = RTC_MODE0_INTENCLR_CMP0;
+  rtcHandler = nullptr;
 }
 
 void RealTimeClock::setElapsed(uint32_t duration)
@@ -116,12 +127,10 @@ void RealTimeClock::setElapsed(uint32_t duration)
   while (RTC->MODE0.STATUS.bit.SYNCBUSY);
 }
 
-uint32_t RealTimeClock::getElapsed()
+uint32_t RealTimeClock::getElapsed() const
 {
   // request read of counter register
-  RTC->MODE0.READREQ.reg = RTC_READREQ_RREQ | RTC_READREQ_ADDR(RTC_MODE0_COUNT_OFFSET);
-  while (RTC->MODE0.STATUS.bit.SYNCBUSY);
-  uint64_t result = RTC->MODE0.COUNT.reg;
+  uint64_t result = getCounter();
 
   // convert counter value to duration
   result = durationScale? result*durationScale*clkDiv/clkGenFrequency : result;
@@ -129,20 +138,44 @@ uint32_t RealTimeClock::getElapsed()
   return result < ULONG_MAX? result : ULONG_MAX;
 }
 
-void (*RealTimeClock::rtcHandler)() = nullptr;
+uint32_t RealTimeClock::getCounter() const
+{
+  // request read of counter register
+  RTC->MODE0.READREQ.reg = RTC_READREQ_RREQ | RTC_READREQ_ADDR(RTC_MODE0_COUNT_OFFSET);
+  while (RTC->MODE0.STATUS.bit.SYNCBUSY);
 
+  return RTC->MODE0.COUNT.reg;
+}
+
+void RealTimeClock::isrHandler()
+{
+  // clear all interrupt flags
+  RTC->MODE0.INTFLAG.reg = RTC->MODE0.INTENSET.reg;
+
+  if (!periodic)
+  {
+    // not periodic, disable counter compare match interrupt
+    RTC->MODE0.INTENCLR.reg = RTC_MODE0_INTENCLR_CMP0;
+  }
+  else if (!clearOnTimer)
+  {
+    // periodic and no clear on timer, update counter compare register
+    lastCounter += durationTicks;
+    RTC->MODE0.COMP[0].reg = lastCounter;
+    while (RTC->MODE0.STATUS.bit.SYNCBUSY);
+  }
+
+  // handle interrupt
+  if (rtcHandler)
+  {
+    rtcHandler();
+  }
+}
 
 /**
  * SAMD21 RTC interrupt handler
  */
 void RTC_Handler()
 {
-  // clear all interrupt flags
-  RTC->MODE0.INTFLAG.reg = RTC->MODE0.INTENSET.reg;
-
-  // handle interrupt
-  if (SAMD21LPE::RealTimeClock::rtcHandler)
-  {
-    SAMD21LPE::RealTimeClock::rtcHandler();
-  }
+  RealTimeClock::instance().isrHandler();
 }
