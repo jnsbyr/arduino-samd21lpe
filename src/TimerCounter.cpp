@@ -30,7 +30,7 @@
 using namespace SAMD21LPE;
 
 
-bool TimerCounter::enable(uint8_t id, uint8_t clkGenId, uint32_t clkGenFrequency, Prescaler clkDiv, Resolution resolution, bool runStandby, uint32_t durationScale)
+bool TimerCounter::enable(uint8_t id, uint8_t clkGenId, uint32_t clkGenFrequency, Prescaler clkDiv, Resolution resolution, uint32_t durationScale, bool runStandby, uint8_t irqPriority)
 {
   if (id >= 3 && id <= 5 && (resolution == RES8 || resolution == RES16 || (id == 4 && resolution == RES32)))
   {
@@ -116,7 +116,7 @@ bool TimerCounter::enable(uint8_t id, uint8_t clkGenId, uint32_t clkGenFrequency
     // setup IRQ
     NVIC_DisableIRQ(irq);
     NVIC_ClearPendingIRQ(irq);
-    NVIC_SetPriority(irq, 0x00);
+    NVIC_SetPriority(irq, irqPriority);
     NVIC_EnableIRQ(irq);
 
     // enable overflow interrupt (needed for oneshot mode)
@@ -233,11 +233,10 @@ void TimerCounter::start(uint32_t duration, bool periodic, void (*callback)())
 {
   if (tc)
   {
-    tcHandler = callback;
-
     // disable counter
-    tc->COUNT8.CTRLA.bit.ENABLE = 0;
-    while (tc->COUNT8.STATUS.bit.SYNCBUSY);
+    cancel();
+
+    tcHandler = callback;
 
     // set counter period value
     setCounterRegister(duration);
@@ -249,6 +248,17 @@ void TimerCounter::start(uint32_t duration, bool periodic, void (*callback)())
     // enable counter
     tc->COUNT8.CTRLA.bit.ENABLE = 1;
     while (tc->COUNT8.STATUS.bit.SYNCBUSY);
+  }
+}
+
+void TimerCounter::cancel()
+{
+  if (tc)
+  {
+    tc->COUNT8.CTRLA.bit.ENABLE = 0;
+    while (tc->COUNT8.STATUS.bit.SYNCBUSY);
+
+    tcHandler = nullptr;
   }
 }
 

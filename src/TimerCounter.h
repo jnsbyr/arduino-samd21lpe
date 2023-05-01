@@ -93,10 +93,11 @@ public:
    * @param clkGenFrequency frequency of GCLKGEN [Hz]
    * @param clkDiv GCLK prescaler 0..7
    * @param resolution counter resolution [bits] 8, 16, TC4: 32 by using TC5
-   * @param runStandby keep timer active in standby (default: disabled)
    * @param durationScale unit/scale of duration 0: clock ticks, 1: 1 s, 1000: 1 ms (default), 1000000: 1 µs
+   * @param runStandby keep timer active in standby (default: disabled)
+   * @param irqPriority 0 (highest, default) .. 3 (lowest), must be 3 to use SysTick dependent operations in ISR
    */
-  bool enable(uint8_t id, uint8_t clkGenId, uint32_t clkGenFrequency, Prescaler clkDiv, Resolution resolution, bool runStandby = false, uint32_t durationScale = 1000U);
+  bool enable(uint8_t id, uint8_t clkGenId, uint32_t clkGenFrequency, Prescaler clkDiv, Resolution resolution, uint32_t durationScale = 1000U, bool runStandby = false, uint8_t irqPriority = 0);
 
   /**
    * reenable TC module(s) and TC generic clock
@@ -123,6 +124,11 @@ public:
   void start(uint32_t duration, bool periodic = false, void (*callback)() = nullptr);
 
   /**
+   * cancel timer
+   */
+  void cancel();
+
+  /**
    * get elapsed duration
    * @return elapsed timer duration since calling start()
    */
@@ -130,6 +136,8 @@ public:
 
   /**
    * start oneshot timer and wait for completion, blocking, using configured sleep mode, see System::setSleepMode()
+   * note: will clear callback
+   *
    * @param duration timer/wait duration
    */
   void wait(uint32_t duration);
