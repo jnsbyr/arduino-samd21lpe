@@ -55,13 +55,20 @@ class System
 public:
   enum SleepMode
   {
-    IDLE0 = 0,
-    IDLE1 = 1,
-    IDLE2 = 2,
-    STANDBY = 3
+    IDLE0   = 0, //  4.1 µs wakeup, stopped: CPU
+    IDLE1   = 1, // 16.4 µs wakeup, stopped: CPU, AHB
+    IDLE2   = 2, // 17.2 µs wakeup, stopped: CPU, AHB, APB
+    STANDBY = 3  // 22.1 µs wakeup, stopped: CPU, AHB, APB, oscillators (max. startup times: OSC8M 3.3 µs, DFLL48M 9 µs, OSC32K 61 µs, XOSC32K 916 ms)
   };
 
 public:
+  /**
+   * read SAMD21 128 bit serial number
+   * @param index word index, 0..3
+   * @return 32 bit of serial number
+  */
+  static uint32_t getSerialNumber(uint8_t index);
+
   /**
    * setup a generic clock generator with given divider
    * with OSCULP32K as source and RUNSTDBY option
@@ -88,9 +95,10 @@ public:
    * enable generic clock by connecting it to a generic clock generator
    *
    * notes:
-   * - also enables module via PM for some generic clocks (ADC, EIC, RTC, USB)
+   * - also enables module via PM for some generic clocks (ADC, EIC, RTC, SERCOM, TCC2, TC3-5, USB)
    *   including APB B or APB C bus
-   *
+   * - for TCC2 and TC3-5 PM->APBBMASK must be set additionally because timer clock is not timer specific
+   * - when using SPI enableDMAc() must be called additionally
    */
   static void enableClock(uint8_t clkId, uint8_t clkGenId);
 
@@ -98,7 +106,7 @@ public:
    * disable generic clock by connecting it to disabled generic clock generator 8
    *
    * notes:
-   * - also disables module via PM for some generic clocks (ADC, EIC, RTC, USB)
+   * - also disables module via PM for some generic clocks (ADC, EIC, RTC, SERCOM, TCC2, TC3-5, USB)
    * - also disables APB B and APB C bus via PM if no module remains enabled on the bus
    *
    */
@@ -136,16 +144,21 @@ public:
   }
 
   /**
-   * enable bus clock for PORT module
-   */
-  static void enablePORT();
-
-  /**
    * enable bus clock for EIC module
    *
    * note: must be called before call to attachInterrupt() after calling reducePowerConsumption()
    */
   static void enableEIC();
+
+  /**
+   * enable bus clock for DMAC module
+   */
+  static void enableDMAC();
+
+  /**
+   * enable bus clock for PORT module
+   */
+  static void enablePORT();
 
   /**
    * configure sleep mode

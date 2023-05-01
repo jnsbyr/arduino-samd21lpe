@@ -29,6 +29,17 @@
 #include "System.h"
 using namespace SAMD21LPE;
 
+uint32_t System::getSerialNumber(uint8_t index)
+{
+  switch (index)
+  {
+    case 0:  return *(uint32_t*)0x0080A00C;
+    case 1:  return *(uint32_t*)0x0080A040;
+    case 2:  return *(uint32_t*)0x0080A044;
+    case 3:  return *(uint32_t*)0x0080A048;
+    default: return 0;
+  }
+}
 
 void System::setupClockGenOSCULP32K(uint8_t genId, int8_t div)
 {
@@ -104,7 +115,7 @@ void System::enableClock(uint8_t clkId, uint8_t clkGenId)
       enableEIC();
       break;
 
-    // AHB + APB B
+    // APB B
     case GCM_USB:
       PM->AHBMASK.reg |= PM_AHBMASK_USB | PM_AHBMASK_HPB1;
       PM->APBBMASK.reg |= PM_APBBMASK_USB;
@@ -116,10 +127,34 @@ void System::enableClock(uint8_t clkId, uint8_t clkGenId)
       PM->AHBMASK.reg |= PM_AHBMASK_HPB2;
       break;
 
-    // APB C
     case GCM_ADC:
       PM->AHBMASK.reg |= PM_AHBMASK_HPB2;
       PM->APBCMASK.reg |= PM_APBCMASK_ADC;
+      break;
+
+    case GCM_SERCOM0_CORE:
+      PM->AHBMASK.reg |= PM_AHBMASK_HPB2;
+      PM->APBCMASK.reg |= PM_APBCMASK_SERCOM0;
+      break;
+    case GCM_SERCOM1_CORE:
+      PM->AHBMASK.reg |= PM_AHBMASK_HPB2;
+      PM->APBCMASK.reg |= PM_APBCMASK_SERCOM1;
+      break;
+    case GCM_SERCOM2_CORE:
+      PM->AHBMASK.reg |= PM_AHBMASK_HPB2;
+      PM->APBCMASK.reg |= PM_APBCMASK_SERCOM2;
+      break;
+    case GCM_SERCOM3_CORE:
+      PM->AHBMASK.reg |= PM_AHBMASK_HPB2;
+      PM->APBCMASK.reg |= PM_APBCMASK_SERCOM3;
+      break;
+    case GCM_SERCOM4_CORE:
+      PM->AHBMASK.reg |= PM_AHBMASK_HPB2;
+      PM->APBCMASK.reg |= PM_APBCMASK_SERCOM4;
+      break;
+    case GCM_SERCOM5_CORE:
+      PM->AHBMASK.reg |= PM_AHBMASK_HPB2;
+      PM->APBCMASK.reg |= PM_APBCMASK_SERCOM5;
       break;
   }
 }
@@ -160,6 +195,49 @@ void System::disableClock(uint8_t clkId)
     // APB C
     case GCM_ADC:
       PM->APBCMASK.reg |= PM_APBCMASK_ADC;
+      if (!PM->APBCMASK.reg)
+      {
+        PM->AHBMASK.reg &= ~PM_AHBMASK_HPB2;
+      }
+      break;
+
+    case GCM_SERCOM0_CORE:
+      PM->APBCMASK.reg |= PM_APBCMASK_SERCOM0;
+      if (!PM->APBCMASK.reg)
+      {
+        PM->AHBMASK.reg &= ~PM_AHBMASK_HPB2;
+      }
+      break;
+    case GCM_SERCOM1_CORE:
+      PM->APBCMASK.reg |= PM_APBCMASK_SERCOM1;
+      if (!PM->APBCMASK.reg)
+      {
+        PM->AHBMASK.reg &= ~PM_AHBMASK_HPB2;
+      }
+      break;
+    case GCM_SERCOM2_CORE:
+      PM->APBCMASK.reg |= PM_APBCMASK_SERCOM2;
+      if (!PM->APBCMASK.reg)
+      {
+        PM->AHBMASK.reg &= ~PM_AHBMASK_HPB2;
+      }
+      break;
+    case GCM_SERCOM3_CORE:
+      PM->APBCMASK.reg |= PM_APBCMASK_SERCOM3;
+      if (!PM->APBCMASK.reg)
+      {
+        PM->AHBMASK.reg &= ~PM_AHBMASK_HPB2;
+      }
+      break;
+    case GCM_SERCOM4_CORE:
+      PM->APBCMASK.reg |= PM_APBCMASK_SERCOM4;
+      if (!PM->APBCMASK.reg)
+      {
+        PM->AHBMASK.reg &= ~PM_AHBMASK_HPB2;
+      }
+      break;
+    case GCM_SERCOM5_CORE:
+      PM->APBCMASK.reg |= PM_APBCMASK_SERCOM5;
       if (!PM->APBCMASK.reg)
       {
         PM->AHBMASK.reg &= ~PM_AHBMASK_HPB2;
@@ -217,7 +295,7 @@ void System::reducePowerConsumption()
   // optimize use of oscillators
   if (SystemCoreClock == 8000000L || SystemCoreClock == 4000000L || SystemCoreClock == 2000000L || SystemCoreClock == 1000000L)
   {
-    // CPU clock frequency less equal 8 MHz or diveided by the power of 2, switch GCLKGEN0 from XOSC32K/DFLL48M to OSC8M oscillator
+    // CPU clock frequency less equal 8 MHz or divided by the power of 2, switch GCLKGEN0 from XOSC32K/DFLL48M to OSC8M oscillator
     setupClockGenOSC8M(0, 8000000L/SystemCoreClock - 2);
     // disable GCLKGEN1 and DFLL48M
     disableClockGen(1);
@@ -238,7 +316,7 @@ void System::reducePowerConsumption()
   }
 
   // disable most GCLKs (will reduce supply current by ~50 %)
-  for (size_t clkId = 1; clkId < GCLK_NUM; clkId++)
+  for (size_t clkId = GCLK_CLKCTRL_ID_FDPLL_Val; clkId < GCLK_NUM; clkId++)
   {
     if (clkId != GCLK_CLKCTRL_ID_RTC_Val)
     {
@@ -254,15 +332,21 @@ void System::reducePowerConsumption()
   }
 }
 
+void System::enableEIC()
+{
+  PM->APBAMASK.reg |= PM_APBAMASK_EIC;
+}
+
+void System::enableDMAC()
+{
+  PM->AHBMASK.reg |= PM_AHBMASK_DMAC | PM_AHBMASK_HPB1;
+  PM->APBBMASK.reg |= PM_APBBMASK_DMAC;
+}
+
 void System::enablePORT()
 {
   PM->AHBMASK.reg |= PM_AHBMASK_HPB1;
   PM->APBBMASK.reg |= PM_APBBMASK_PORT;
-}
-
-void System::enableEIC()
-{
-  PM->APBAMASK.reg |= PM_APBAMASK_EIC;
 }
 
 void System::setSleepMode(SleepMode mode)
