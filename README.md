@@ -76,7 +76,7 @@ The external interrupt controller (EIC) is one of the MCU modules where Arduino 
 
 On the other hand the SPI implementation of the Arduino Core for SAMD21 does not use *F_CPU* or *SystemCoreClock* for determining the SPI baud rate divider but a hardcoded value of 48000000 (*SERCOM_SPI_FREQ_REF*), preventing correct baud settings at alternative main clock frequencies. To work around this without changing the Arduino Core source it is necessary to scale the baud rate with the following formula:
 
-$uint32_t configBaud = (uint64_t)spiBaud*SERCOM_SPI_FREQ_REF/F_CPU$
+*uint32_t configBaud = (uint64_t)spiBaud*SERCOM_SPI_FREQ_REF/F_CPU*
 
 
 ## Seed Studio XIAO SAMD21
