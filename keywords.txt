@@ -27,6 +27,7 @@ Pin	KEYWORD1
 
 __WFI	KEYWORD2
 
+getSerialNumber	KEYWORD2
 setupClockGenOSCULP32K	KEYWORD2
 setupClockGenOSC8M	KEYWORD2
 disableClockGen	KEYWORD2
@@ -36,8 +37,9 @@ isClockEnabled KEYWORD2
 reducePowerConsumption	KEYWORD2
 enableSysTick	KEYWORD2
 disableSysTick	KEYWORD2
-enablePORT	KEYWORD2
+enableDMAC	KEYWORD2
 enableEIC	KEYWORD2
+enablePORT	KEYWORD2
 setSleepMode	KEYWORD2
 setSleepOnExitISR	KEYWORD2
 sleep	KEYWORD2
@@ -47,9 +49,11 @@ disable	KEYWORD2
 reenable	KEYWORD2
 toClockTicks	KEYWORD2
 start	KEYWORD2
+cancel	KEYWORD2
 wait	KEYWORD2
 restart	KEYWORD2
 getElapsed	KEYWORD2
+setElapsed	KEYWORD2
 isStopped	KEYWORD2
 
 setSampling	KEYWORD2
@@ -62,9 +66,6 @@ toTemperature	KEYWORD2
 toReferenceVoltage	KEYWORD2
 durationToHalfPeriods	KEYWORD2
 highestBitSet	KEYWORD2
-
-setTimer	KEYWORD2
-setElapsed	KEYWORD2
 
 
 #######################################

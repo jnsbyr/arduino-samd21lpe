@@ -40,17 +40,18 @@ Well known from other CPUs and MCUs effective power management can be achieved b
 - making use of MCU specific **power management** features (e.g. sleep mode)
 - **reducing supply voltage**
 
-This library provides several functions for that purpose with the *SAMD21LPE::System* class. Using the the SAMD21 datasheet or looking into other documentation that is available online will add the necessary background. 
+This library provides several functions for that purpose with the *SAMD21LPE::System* class. Using the the SAMD21 datasheet or looking into other documentation that is available online will you with the necessary background. 
 
 The [System](src/System.h) class supports the following operations:
 
 - configure the internal clock sources *OSCULP32K* and *OSC8M*
 - disable any clock source
-- enable/disable the clock of any MCU module including the power management of the internal MCU buses for the MCU modules *ADC*, *EIC*, *RTC*, *TC2-TC5* and *USB*
+- enable/disable the clock of any MCU module including the power management of the internal MCU buses for the MCU modules *ADC*, *EIC*, *RTC*, *SERCOM0-5*, *TCC2-TC5* and *USB*
 - enable/disable SysTick
 - configure/enter sleep mode (idle 0-2 or standby)
 - enable/disable sleep-on-exit ISR mode
 - disable all non essential modules incl. *USB*
+- read the MCU serial number
 
 In this list the **reduction of the main clock** is not included. Changing this clock at any time is possible but in combination with the Arduino framework this is typically not a good choice as several Arduino libraries assume that the main clock frequency *F_CPU* is fixed at compile time. Changing it at runtime to a different value will result in the loss of various functions, especially everything that is timing related (e.g. millis() will no longer be real milliseconds). As the Arduino Core for SAMD21 only supports F_CPU fixed to 48 MHz, a patch if provided for [startup.c](patches/Seeduino-hardware-samd-1.8.3/startup.c) and [boards.txt](patches/Seeduino-hardware-samd-1.8.3/boards.txt) to support alternative values of 32, 24, 16, 12, 8, 6, 3 and 1.5 MHz. The provided patch is for the Seed Studio XIAO SAMD21, but this patch can also applied to any other SAMD21 MCU with no or little changes.
 
@@ -59,7 +60,7 @@ The SAMD21 *USB* module requires a clock of 48 MHz, although this does not have 
 Using these functions, especially combined, can reduce the average runtime power significantly and allows to put the MCU into standby mode with a supply current of around 2 µA at 3 V.
 
 
-## ADC, EIC, RTC and TC
+## ADC, EIC, RTC, SERCOM and TC
 
 Compared to the extensions included in the Arduino core for the ESP8266 the Arduino core for the SAMD21 is rather sparse. Three more classes are included in this library to provide several missing features:
 
@@ -72,6 +73,10 @@ Compared to the extensions included in the Arduino core for the ESP8266 the Ardu
 The *RealTimeClock* class of this library provides RTC counter mode as an alternative to the calendar mode of the RTCZero library. The *Analog2DigitalConverter* class and the *TimerCounter* can be used alternatively or combined with Arduino framework functions if the documented conditions are observed.
 
 The external interrupt controller (EIC) is one of the MCU modules where Arduino framework functions like attachInterrupt() can be used in the familiar way and the low power optimization can be achieved by a call to the *System* class.
+
+On the other hand the SPI implementation of the Arduino Core for SAMD21 does not use *F_CPU* or *SystemCoreClock* for determining the SPI baud rate divider but a hardcoded value of 48000000 (*SERCOM_SPI_FREQ_REF*), preventing correct baud settings at alternative main clock frequencies. To work around this without changing the Arduino Core source it is necessary to scale the baud rate with the following formula:
+
+$uint32_t configBaud = (uint64_t)spiBaud*SERCOM_SPI_FREQ_REF/F_CPU$
 
 
 ## Seed Studio XIAO SAMD21
