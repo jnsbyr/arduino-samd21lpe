@@ -39,6 +39,7 @@ bool TimerCounter::enable(uint8_t id, uint8_t clkGenId, uint32_t clkGenFrequency
     this->clkGenFrequency = clkGenFrequency;
     this->resolution = resolution;
     this->durationScale = durationScale;
+    this->duration = 0;
 
     switch (clkDiv)
     {
@@ -111,7 +112,7 @@ bool TimerCounter::enable(uint8_t id, uint8_t clkGenId, uint32_t clkGenFrequency
                            TC_CTRLA_WAVEGEN_MFRQ |
                            TC_CTRLA_PRESCALER(clkDiv) |
                            (runStandby? TC_CTRLA_RUNSTDBY : 0);
-    while (tc->COUNT8.STATUS.bit.SYNCBUSY);
+    sync();
 
     // setup IRQ
     NVIC_DisableIRQ(irq);
@@ -203,29 +204,41 @@ uint32_t TimerCounter::toClockTicks(uint32_t duration)
   }
 }
 
+void TimerCounter::sync() const
+{
+  while (tc->COUNT8.STATUS.bit.SYNCBUSY);
+}
+
+
 void TimerCounter::setCounterRegister(uint32_t duration)
 {
-  if (duration > 0)
+  if (duration > 0 && duration != this->duration)
   {
+    this->duration = duration;
+
     uint32_t count = toClockTicks(duration);
     switch (resolution)
     {
       case RES8:
         if (count > UCHAR_MAX) count = UCHAR_MAX;
         tc->COUNT8.CC[0].reg = (uint8_t)count;
+        sync();
         tc->COUNT8.COUNT.reg = 0;
         break;
 
       case RES32:
         tc->COUNT32.CC[0].reg = (uint32_t)count;
+        sync();
         tc->COUNT32.COUNT.reg = 0;
         break;
 
       default:
         if (count > USHRT_MAX) count = USHRT_MAX;
         tc->COUNT16.CC[0].reg = (uint16_t)count;
+        sync();
         tc->COUNT16.COUNT.reg = 0;
     }
+    sync();
   }
 }
 
@@ -236,18 +249,19 @@ void TimerCounter::start(uint32_t duration, bool periodic, void (*callback)())
     // disable counter
     cancel();
 
-    tcHandler = callback;
+    this->periodic = periodic;
+    this->tcHandler = callback;
 
     // set counter period value
     setCounterRegister(duration);
 
     // set one-shot mode
     tc->COUNT8.CTRLBSET.bit.ONESHOT = periodic? 0 : 1;
-    while (tc->COUNT8.STATUS.bit.SYNCBUSY);
+    sync();
 
     // enable counter
     tc->COUNT8.CTRLA.bit.ENABLE = 1;
-    while (tc->COUNT8.STATUS.bit.SYNCBUSY);
+    sync();
   }
 }
 
@@ -256,7 +270,7 @@ void TimerCounter::cancel()
   if (tc)
   {
     tc->COUNT8.CTRLA.bit.ENABLE = 0;
-    while (tc->COUNT8.STATUS.bit.SYNCBUSY);
+    sync();
 
     tcHandler = nullptr;
   }
@@ -266,7 +280,7 @@ uint32_t TimerCounter::getElapsed()
 {
   // request read of counter register
   tc->COUNT8.READREQ.reg = TC_READREQ_RREQ | TC_READREQ_ADDR(TC_COUNT8_COUNT_OFFSET);
-  while (tc->COUNT8.STATUS.bit.SYNCBUSY);
+  sync();
 
   uint64_t result;
   switch (resolution)
@@ -310,12 +324,12 @@ bool TimerCounter::isStopped()
 
 void TimerCounter::restart(uint32_t duration)
 {
-  if (tc && tc->COUNT8.CTRLBSET.bit.ONESHOT)
+  if (tc && !periodic)
   {
     setCounterRegister(duration);
 
     tc->COUNT8.CTRLBSET.reg |= TC_CTRLBSET_CMD_RETRIGGER;
-    while (tc->COUNT8.STATUS.bit.SYNCBUSY);
+    sync();
   }
 }
 

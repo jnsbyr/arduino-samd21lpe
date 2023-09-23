@@ -87,6 +87,12 @@ public:
    * - adjust clkGenFrequency and clkDiv to provide the required timing resolution and jitter
    * - for durationScale > 0 the counter value is calculated using unsigned 64 bits
    *   integer arithmetics: counterValue = clkGenFrequency/clkDiv*duration/durationScale
+   * - max. execution time: t = 6/clkGenFrequency + 3/fAPB -> ~6 ms @ 1kHz
+   *   disable, reenable, toClockTicks, isrHandler: 0t
+   *   cancel, getElapsed: 1t
+   *   restart: 1-2t
+   *   enable: 2t
+   *   start: 4t
    *
    * @param id timer counter ID 3..5
    * @param clkGenId GCLKGEN ID 0..7
@@ -159,18 +165,21 @@ public:
   static void isrHandler(uint8_t id);
 
 private:
+  void sync() const;
   void setCounterRegister(uint32_t duration);
 
 private:
   static TimerCounter* timerCounter[3];
 
 private:
+  bool periodic;
   bool interrupted = false;
   uint8_t id;
   uint8_t clkGenId = UCHAR_MAX;
   uint16_t clkDiv;          // 1..1024
   uint32_t durationScale;   // 0, 1, 1000, 1000000
   uint32_t clkGenFrequency; // [Hz]
+  uint32_t duration;
   Resolution resolution;    // 8, 16, 32
   IRQn_Type irq;
   Tc* tc = nullptr;
