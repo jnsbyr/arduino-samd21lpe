@@ -53,21 +53,19 @@ void RealTimeClock::enable(uint8_t clkGenId, uint32_t clkGenFrequency, uint8_t c
     RTC->MODE0.CTRL.reg |= RTC_MODE0_CTRL_SWRST;
     while (RTC->MODE0.CTRL.bit.SWRST);
 
-    // setup RTC for mode 0, no continuous read, optionally clear on match (periodic timer)
-    RTC->MODE0.READREQ.reg &= ~RTC_READREQ_RCONT;
-    RTC->MODE0.CTRL.reg = (uint16_t)(RTC_MODE0_CTRL_MODE_COUNT32 |
-                                     RTC_MODE0_CTRL_PRESCALER(clkDiv) |
-                                     (clearOnTimer? RTC_MODE0_CTRL_MATCHCLR : 0));
-
     // enable RTC interrupt
     NVIC_DisableIRQ(RTC_IRQn);
     NVIC_ClearPendingIRQ(RTC_IRQn);
     NVIC_SetPriority(RTC_IRQn, min(irqPriority, (1 << __NVIC_PRIO_BITS) - 1));
     NVIC_EnableIRQ(RTC_IRQn);
 
-    // enable RTC
-    RTC->MODE0.CTRL.reg |= RTC_MODE0_CTRL_ENABLE;
-    while (RTC->MODE0.STATUS.bit.SYNCBUSY);
+    // setup RTC for mode 0, no continuous read, optionally clear on match (periodic timer) and enable
+    RTC->MODE0.READREQ.reg &= ~RTC_READREQ_RCONT;
+    RTC->MODE0.CTRL.reg = (uint16_t)(RTC_MODE0_CTRL_MODE_COUNT32 |
+                                     RTC_MODE0_CTRL_PRESCALER(clkDiv) |
+                                     (clearOnTimer? RTC_MODE0_CTRL_MATCHCLR : 0) |
+                                     RTC_MODE0_CTRL_ENABLE);
+    sync();
   }
 }
 
@@ -107,11 +105,11 @@ void RealTimeClock::start(uint32_t duration, bool periodic, void (*callback)())
   durationTicks = toClockTicks(duration);
   lastCounter = durationTicks + (clearOnTimer? 0 : getCounter());
   RTC->MODE0.COMP[0].reg = lastCounter;
-  while (RTC->MODE0.STATUS.bit.SYNCBUSY);
+  sync();
 
   // clear and enable counter compare match interrupt
   RTC->MODE0.INTFLAG.reg = RTC_MODE0_INTFLAG_CMP0;
-  RTC->MODE0.INTENSET.reg = RTC_MODE0_INTENSET_CMP0;
+  RTC->MODE0.INTENSET.reg |= RTC_MODE0_INTENSET_CMP0;
 }
 
 void RealTimeClock::cancel()
@@ -124,7 +122,7 @@ void RealTimeClock::setElapsed(uint32_t duration)
 {
   // set counter value
   RTC->MODE0.COUNT.reg = toClockTicks(duration);
-  while (RTC->MODE0.STATUS.bit.SYNCBUSY);
+  sync();
 }
 
 uint32_t RealTimeClock::getElapsed() const
@@ -141,34 +139,68 @@ uint32_t RealTimeClock::getElapsed() const
 uint32_t RealTimeClock::getCounter() const
 {
   // request read of counter register
-  RTC->MODE0.READREQ.reg = RTC_READREQ_RREQ | RTC_READREQ_ADDR(RTC_MODE0_COUNT_OFFSET);
-  while (RTC->MODE0.STATUS.bit.SYNCBUSY);
+  if (!counterAvailable)
+  {
+    RTC->MODE0.READREQ.reg = RTC_READREQ_RREQ | RTC_READREQ_ADDR(RTC_MODE0_COUNT_OFFSET);
+    sync();
+  }
 
   return RTC->MODE0.COUNT.reg;
+}
+
+void RealTimeClock::requestCounter(void (*callback)())
+{
+  counterCallback = callback;
+  counterAvailable = false;
+  if (callback)
+  {
+    RTC->MODE0.INTENSET.reg |= RTC_MODE0_INTENSET_SYNCRDY;
+    RTC->MODE0.READREQ.reg = RTC_READREQ_RREQ | RTC_READREQ_ADDR(RTC_MODE0_COUNT_OFFSET);
+  }
+}
+
+void RealTimeClock::sync() const
+{
+  while (RTC->MODE0.STATUS.bit.SYNCBUSY);
 }
 
 void RealTimeClock::isrHandler()
 {
   // clear all interrupt flags
+  uint8_t intFlag = RTC->MODE0.INTFLAG.reg;
   RTC->MODE0.INTFLAG.reg = RTC->MODE0.INTENSET.reg;
 
-  if (!periodic)
+  if ((intFlag & RTC_MODE0_INTENSET_SYNCRDY) && counterCallback)
   {
-    // not periodic, disable counter compare match interrupt
-    RTC->MODE0.INTENCLR.reg = RTC_MODE0_INTENCLR_CMP0;
-  }
-  else if (!clearOnTimer)
-  {
-    // periodic and no clear on timer, update counter compare register
-    lastCounter += durationTicks;
-    RTC->MODE0.COMP[0].reg = lastCounter;
-    while (RTC->MODE0.STATUS.bit.SYNCBUSY);
+    // handle counter read interrupt
+    RTC->MODE0.INTENCLR.reg = RTC_MODE0_INTENCLR_SYNCRDY;
+    counterAvailable = true;
+    counterCallback();
+    counterCallback = nullptr;
+    counterAvailable = false;
   }
 
-  // handle interrupt
-  if (rtcHandler)
+  if (intFlag & RTC_MODE0_INTENSET_CMP0)
   {
-    rtcHandler();
+    // handle timer interrupt
+    if (!periodic)
+    {
+      // not periodic, disable counter compare match interrupt
+      RTC->MODE0.INTENCLR.reg = RTC_MODE0_INTENCLR_CMP0;
+    }
+    else if (!clearOnTimer)
+    {
+      // periodic and no clear on timer, update counter compare register
+      lastCounter += durationTicks;
+      RTC->MODE0.COMP[0].reg = lastCounter;
+      // skipping sync reduces ISR latency
+    }
+
+    // handle interrupt
+    if (rtcHandler)
+    {
+      rtcHandler();
+    }
   }
 }
 
