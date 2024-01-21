@@ -286,10 +286,10 @@ void System::reducePowerConsumption()
   }
   else
   {
-    // higher CPU clock frequency, reduce bus clocks (to reduce consumption)
+    // higher CPU clock frequency, reduce bus clocks (to reduce consumption), SDK default: DIV1 -> 48 MHz
     PM->APBASEL.reg = PM_APBASEL_APBADIV_DIV4;
     PM->APBBSEL.reg = PM_APBBSEL_APBBDIV_DIV128;
-    PM->APBCSEL.reg = PM_APBCSEL_APBCDIV_DIV128;
+    PM->APBCSEL.reg = PM_APBCSEL_APBCDIV_DIV1; // DIV128 preferred but affects SERCOM::calculateBaudrateSynchronous
   }
 
   // optimize use of oscillators

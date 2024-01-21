@@ -2,15 +2,20 @@
     "name": "SAMD21 Low Power Extensions",
     "keywords": "SAMD21, low power, sleep mode, ADC, EIC, GCLK, PM, RTC, SPI, TC",
     "description": "Arduino Core for SAMD21 extensions to support fine grained power management, especially for the modules ADC, EIC, GCLK, PM, RTC, SPI and TC. Also supports reading Vcc, Vcore and core temperature.",
+    "authors": [
+        {
+          "name": "Jens B.",
+          "maintainer": true
+        }
+    ],
     "repository": {
         "type": "git",
         "url": "https://github.com/jnsbyr/arduino-samd21lpe"
     },
-    "version": "1.0.7",
-    "exclude": "",
+    "version": "1.0.8",
     "examples": "examples/*/*.ino",
+    "license": "Apache-2.0",
     "frameworks": "arduino",
-    "platforms": [
-        "atmelsam"
-    ]
+    "platforms": [ "atmelsam" ],
+    "headers": [ "System.h", "Analog2DigitalConverter.h", "RealTimeClock.h", "TimerCounter.h" ]
 }
