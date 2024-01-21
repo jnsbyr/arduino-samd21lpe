@@ -56,8 +56,8 @@ public:
   enum SleepMode
   {
     IDLE0   = 0, //  4.1 µs wakeup, stopped: CPU
-    IDLE1   = 1, // 16.4 µs wakeup, stopped: CPU, AHB
-    IDLE2   = 2, // 17.2 µs wakeup, stopped: CPU, AHB, APB
+    IDLE1   = 1, // 16.4 µs wakeup, stopped: CPU, AHB (USB, DMAC, NVMCTRL, DSU, HPB0-2)
+    IDLE2   = 2, // 17.2 µs wakeup, stopped: CPU, AHB (USB, DMAC, NVMCTRL, DSU, HPB0-2), APB (all other peripheral)
     STANDBY = 3  // 22.1 µs wakeup, stopped: CPU, AHB, APB, oscillators (max. startup times: OSC8M 3.3 µs, DFLL48M 9 µs, OSC32K 61 µs, XOSC32K 916 ms)
   };
 

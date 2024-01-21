@@ -82,12 +82,14 @@ public:
    * enable TC module(s), configure and enable TC generic clock, configure TC and enable IRQ
    *
    * notes:
+   * - timer resolution depends on clock frequency and prescaler setup: tcPrescaler/clkGenFrequency -> 128 µs @ clkGenFrequency=8 MHz, clkDiv=7
    * - timer will not be started automatically, use start()
    * - when using sleep mode, timer interrupt will wakeup MCU
    * - adjust clkGenFrequency and clkDiv to provide the required timing resolution and jitter
    * - for durationScale > 0 the counter value is calculated using unsigned 64 bits
    *   integer arithmetics: counterValue = clkGenFrequency/clkDiv*duration/durationScale
-   * - max. execution time: t = 6/clkGenFrequency + 3/fAPB -> ~6 ms @ 1kHz
+   * - timer tick duration: clkDiv/clkGenFrequency
+   * - max. execution time: t = 6/clkGenFrequency + 3/fAPBC -> ~1.1 µs @ clkGenFrequency=8 MHz, fAPBC=CLK_MAIN/APBC_DIV=8 MHz
    *   disable, reenable, toClockTicks, isrHandler: 0t
    *   cancel, getElapsed: 1t
    *   restart: 1-2t

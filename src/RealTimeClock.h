@@ -72,14 +72,14 @@ public:
    * @param irqPriority 0 (highest) .. 3 (lowest, default), must be 3 to use SysTick dependent operations in ISR
    *
    * notes:
-   * - timer resolution depends on clock frequency and divider setup: 2^clkDiv/clkGenFrequency
+   * - timer resolution depends on clock frequency and prescaler setup: 2^clkDiv/clkGenFrequency -> 1 s @ clkGenFrequency=1 kHz, clkDiv=10
    * - counter will be zeroed and started
    * - counter will overflow with clearOnTimer = false or will be zeroed periodically with clearOnTimer = true
    * - with a clock frequency of 1 kHz the counter will overflow after 49.7 days
    * - adjust clkGenFrequency and clkDiv to provide the required timing resolution and jitter
    * - for durationScale > 0 the raw counter value is calculated using unsigned 64 bits
    *   integer arithmetics: counterValue = clkGenFrequency/clkDiv*duration/durationScale
-   * - max. execution time: t = 6/clkGenFrequency + 3/fAPB -> ~6 ms @ 1kHz
+   * - max. execution time: t = 6/clkGenFrequency + 3/fAPBA -> ~6 ms @ clkGenFrequency=1 kHz, fAPBA=CLK_MAIN/APBA_DIV=8 MHz
    */
   void enable(uint8_t clkGenId, uint32_t clkGenFrequency, uint8_t clkDiv = 10, uint32_t durationScale = 1000U, bool clearOnTimer = false, uint8_t irqPriority = 3);
 
