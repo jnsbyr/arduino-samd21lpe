@@ -144,7 +144,12 @@ public:
 
   /**
    * start oneshot timer and wait for completion, blocking, using configured sleep mode, see System::setSleepMode()
-   * note: will clear callback
+   * notes:
+   * - low power replacement for delay()
+   * - runStandby must be enabled for timer and clock generator when used with sleep mode "standby"
+   * - cannot be used inside ISR with sleep mode "standby"
+   * - when used inside ISR irqPriority value of timer must be lower then irqPriority value of ISR
+   * - will clear callback assignment
    *
    * @param duration timer/wait duration
    */

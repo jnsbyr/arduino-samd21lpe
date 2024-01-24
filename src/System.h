@@ -72,7 +72,8 @@ public:
   /**
    * setup a generic clock generator with given divider
    * with OSCULP32K as source and RUNSTDBY option
-
+   *
+   * @param genId 0 .. 8 (GCLK_CLKCTRL_GEN_GCLKn_Val or GENERIC_CLOCK_GENERATOR_XXXX)
    * @param div divide OSC frequency by 2^(div + 1), -1 disables divider
    */
   static void setupClockGenOSCULP32K(uint8_t genId, int8_t div = -1);
@@ -81,6 +82,7 @@ public:
    * setup a generic clock generator with given divider
    * with OSC8M as source with ONDEMAND option
    *
+   * @param genId 0 .. 8 (GCLK_CLKCTRL_GEN_GCLKn_Val or GENERIC_CLOCK_GENERATOR_XXXX)
    * @param div divide OSC frequency by 2^(div + 1), -1 disables divider
    * @param runStandby keep generator active in standby
    */
@@ -88,6 +90,7 @@ public:
 
   /**
    * disable a generic clock generator
+   * @param genId 0 .. 8 (GCLK_CLKCTRL_GEN_GCLKn_Val or GENERIC_CLOCK_GENERATOR_XXXX)
    */
   static void disableClockGen(uint8_t genId);
 
@@ -99,6 +102,15 @@ public:
    *   including APB B or APB C bus
    * - for TCC2 and TC3-5 PM->APBBMASK must be set additionally because timer clock is not timer specific
    * - when using SPI enableDMAc() must be called additionally
+   * - SDK claims the following GCLKs (see startup.c):
+   *   - 0 GENERIC_CLOCK_GENERATOR_MAIN/GENERIC_CLOCK_MULTIPLEXER_DFLL48M
+   *   - 1 GENERIC_CLOCK_GENERATOR_XOSC32K/GENERIC_CLOCK_GENERATOR_OSC32K
+   *   - 2 GENERIC_CLOCK_GENERATOR_OSCULP32K
+   *   - 3 GENERIC_CLOCK_GENERATOR_OSC8M
+   * - generic clock generator 8 reserved as target for unused generic clocks
+   *
+   * @param genId 0 .. 8 (GCLK_CLKCTRL_GEN_GCLKn_Val or GENERIC_CLOCK_GENERATOR_XXXX)
+   * @param clkId 0 .. 25 (GCLK_CLKCTRL_ID_XXXX or GCM_XXXX)
    */
   static void enableClock(uint8_t clkId, uint8_t clkGenId);
 
@@ -109,10 +121,12 @@ public:
    * - also disables module via PM for some generic clocks (ADC, EIC, RTC, SERCOM, TCC2, TC3-5, USB)
    * - also disables APB B and APB C bus via PM if no module remains enabled on the bus
    *
+   * @param clkId 0 .. 25 (GCLK_CLKCTRL_ID_XXXX or GCM_XXXX)
    */
   static void disableClock(uint8_t clkId);
 
   /**
+   * @param clkId 0 .. 25 (GCLK_CLKCTRL_ID_XXXX or GCM_XXXX)
    * @return true if clock is enabled
    */
   static bool isClockEnabled(uint8_t clkId);
@@ -121,8 +135,8 @@ public:
    * startup power optimization:
    * - disable bus clocks of non essential modules
    * - use OSC8M instead of XOSC32K/DFLL48M depending on F_CPU setting
-   * - disable unused generic clocks generators
-   * - disable unused generic clocks
+   * - disable unused generic clocks generators 2 .. 8
+   * - disable unused generic clocks 1 .. 36 except RTC
    * - adjust NVM read wait states
    */
   static void reducePowerConsumption();

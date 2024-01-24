@@ -297,11 +297,10 @@ void System::reducePowerConsumption()
   {
     // CPU clock frequency less equal 8 MHz or divided by the power of 2, switch GCLKGEN0 from XOSC32K/DFLL48M to OSC8M oscillator
     setupClockGenOSC8M(0, 8000000L/SystemCoreClock - 2);
-    // disable GCLKGEN1 and DFLL48M
+    // disable GCLKGEN1 and XOSC32K/DFLL48M (see SDK startup.c SystemInit())
     disableClockGen(1);
     disableClock(GCLK_CLKCTRL_ID_DFLL48_Val);
     SYSCTRL->DFLLCTRL.bit.ENABLE = 0;
-    // disable XOSC32K
     SYSCTRL->XOSC32K.bit.ENABLE = 0;
   }
   else
