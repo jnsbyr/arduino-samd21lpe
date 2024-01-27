@@ -31,6 +31,9 @@
 #include <Arduino.h>  // Arduino LLC., LGPL 2.1
 #include <sam.h>      // Atmel Corporation, BSD 3-Clause
 
+// comment in to use ISR handlers statically linked instead of dynamically assigned (saves 200..500 bytes SRAM)
+//#define SAMD21LPE_USE_STATIC_ISR_HANDLER
+
 namespace SAMD21LPE
 {
 
@@ -64,6 +67,7 @@ public:
 public:
   /**
    * read SAMD21 128 bit serial number
+   *
    * @param index word index, 0..3
    * @return 32 bit of serial number
   */
@@ -90,6 +94,7 @@ public:
 
   /**
    * disable a generic clock generator
+   *
    * @param genId 0 .. 8 (GCLK_CLKCTRL_GEN_GCLKn_Val or GENERIC_CLOCK_GENERATOR_XXXX)
    */
   static void disableClockGen(uint8_t genId);
@@ -102,7 +107,7 @@ public:
    *   including APB B or APB C bus
    * - for TCC2 and TC3-5 PM->APBBMASK must be set additionally because timer clock is not timer specific
    * - when using SPI enableDMAc() must be called additionally
-   * - SDK claims the following GCLKs (see startup.c):
+   * - SDK claims the following generic clock generator (see startup.c):
    *   - 0 GENERIC_CLOCK_GENERATOR_MAIN/GENERIC_CLOCK_MULTIPLEXER_DFLL48M
    *   - 1 GENERIC_CLOCK_GENERATOR_XOSC32K/GENERIC_CLOCK_GENERATOR_OSC32K
    *   - 2 GENERIC_CLOCK_GENERATOR_OSCULP32K
@@ -199,6 +204,24 @@ public:
    * put MCU to sleep when returning from ISR
    */
   static void setSleepOnExitISR(bool on);
+
+#ifndef SAMD21LPE_USE_STATIC_ISR_HANDLER
+  /**
+   * copy interrupt vector table from flash to RAM
+   * notes:
+   * - allows changed ISR handlers at runtime
+   * - slightly reduces ISR latency
+   */
+  static void cacheVectorTable();
+#endif
+
+  /**
+   * allows read and write access to interrupt vector table
+   * note:
+   * - will cache interrupt vector table in RAM if SAMD21LPE_USE_STATIC_ISR_HANDLER is not enabled
+   * - write access not availabe if SAMD21LPE_USE_STATIC_ISR_HANDLER is enabled
+   */
+  static DeviceVectors& getVectorTable();
 
 };
 

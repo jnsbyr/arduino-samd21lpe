@@ -43,6 +43,8 @@ enablePORT	KEYWORD2
 setSleepMode	KEYWORD2
 setSleepOnExitISR	KEYWORD2
 sleep	KEYWORD2
+cacheVectorTable	KEYWORD2
+getVectorTable	KEYWORD2
 
 enable	KEYWORD2
 disable	KEYWORD2

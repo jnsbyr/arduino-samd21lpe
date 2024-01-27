@@ -415,3 +415,29 @@ void System::setSleepOnExitISR(bool on)
     SCB->SCR &= ~SCB_SCR_SLEEPONEXIT_Msk;
   }
 }
+
+#ifndef SAMD21LPE_USE_STATIC_ISR_HANDLER
+
+// aligned_alloc/posix_memalign is not implemented, static allocation required
+DeviceVectors cachedVectorTable __attribute__ ((aligned(1 << SCB_VTOR_TBLOFF_Pos)));
+
+void System::cacheVectorTable()
+{
+  if (SCB->VTOR < HMCRAMC0_ADDR || SCB->VTOR >= HMCRAMC0_ADDR + HMCRAMC0_SIZE)
+  {
+    // vector table is not in SRAM, move
+    uint32_t cvtAddress = (uint32_t)&cachedVectorTable;
+    memcpy((void*)cvtAddress, (void*)SCB->VTOR, sizeof(DeviceVectors));
+    SCB->VTOR = cvtAddress & SCB_VTOR_TBLOFF_Msk;
+  }
+}
+
+#endif
+
+DeviceVectors& System::getVectorTable()
+{
+#ifndef SAMD21LPE_USE_STATIC_ISR_HANDLER
+  cacheVectorTable();
+#endif
+  return *(DeviceVectors*)SCB->VTOR;
+}
