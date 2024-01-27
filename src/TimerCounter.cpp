@@ -122,6 +122,22 @@ bool TimerCounter::enable(uint8_t id, uint8_t clkGenId, uint32_t clkGenFrequency
     NVIC_DisableIRQ(irq);
     NVIC_ClearPendingIRQ(irq);
     NVIC_SetPriority(irq, irqPriority);
+  #ifndef SAMD21LPE_USE_STATIC_ISR_HANDLER
+    switch (id)
+    {
+      case 3:
+        System::getVectorTable().pfnTC3_Handler = (void*)isrHandlerTC3;
+        break;
+
+      case 4:
+        System::getVectorTable().pfnTC4_Handler = (void*)isrHandlerTC4;
+        break;
+
+      case 5:
+        System::getVectorTable().pfnTC5_Handler = (void*)isrHandlerTC5;
+        break;
+    }
+  #endif
     NVIC_EnableIRQ(irq);
 
     // enable overflow interrupt (needed for oneshot mode)
@@ -359,6 +375,8 @@ void TimerCounter::isrHandler(uint8_t id)
 
 TimerCounter* TimerCounter::timerCounter[3] = { nullptr };
 
+#ifdef SAMD21LPE_USE_STATIC_ISR_HANDLER
+
 /**
  * SAMD21 TC3 interrupt handler
  */
@@ -382,3 +400,5 @@ void TC5_Handler()
 {
   SAMD21LPE::TimerCounter::isrHandler(2);
 }
+
+#endif

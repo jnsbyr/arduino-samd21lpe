@@ -57,6 +57,9 @@ void RealTimeClock::enable(uint8_t clkGenId, uint32_t clkGenFrequency, uint8_t c
     NVIC_DisableIRQ(RTC_IRQn);
     NVIC_ClearPendingIRQ(RTC_IRQn);
     NVIC_SetPriority(RTC_IRQn, min(irqPriority, (1 << __NVIC_PRIO_BITS) - 1));
+  #ifndef SAMD21LPE_USE_STATIC_ISR_HANDLER
+    System::getVectorTable().pfnRTC_Handler = (void*)isrHandler;
+  #endif
     NVIC_EnableIRQ(RTC_IRQn);
 
     // setup RTC for mode 0, no continuous read, optionally clear on match (periodic timer) and enable
@@ -81,6 +84,9 @@ void RealTimeClock::disable()
   // clear RTC interrupts
   NVIC_DisableIRQ(RTC_IRQn);
   NVIC_ClearPendingIRQ(RTC_IRQn);
+#ifndef SAMD21LPE_USE_STATIC_ISR_HANDLER
+  System::getVectorTable().pfnRTC_Handler = nullptr;
+#endif
 }
 
 uint32_t RealTimeClock::toClockTicks(uint32_t duration) const
@@ -206,6 +212,7 @@ void RealTimeClock::isrHandler()
   }
 }
 
+#ifdef SAMD21LPE_USE_STATIC_ISR_HANDLER
 /**
  * SAMD21 RTC interrupt handler
  */
@@ -213,3 +220,4 @@ void RTC_Handler()
 {
   RealTimeClock::instance().isrHandler();
 }
+#endif

@@ -253,6 +253,9 @@ void Analog2DigitalConverter::start(uint8_t muxPosVal, void (*callback)())
     NVIC_DisableIRQ(ADC_IRQn);
     NVIC_ClearPendingIRQ(ADC_IRQn);
     NVIC_SetPriority(ADC_IRQn, 0x00);
+  #ifndef SAMD21LPE_USE_STATIC_ISR_HANDLER
+    System::getVectorTable().pfnADC_Handler = (void*)isrHandler;
+  #endif
     NVIC_EnableIRQ(ADC_IRQn);
 
     // enable result ready interrupt
@@ -472,7 +475,9 @@ const Analog2DigitalConverter::Pin Analog2DigitalConverter::PIN_MAPPING[Analog2D
   { 0, 11, PORT_PA11 }
 };
 
+#ifdef SAMD21LPE_USE_STATIC_ISR_HANDLER
 void ADC_Handler()
 {
   SAMD21LPE::Analog2DigitalConverter::isrHandler();
 }
+#endif
