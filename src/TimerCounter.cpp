@@ -34,6 +34,10 @@ bool TimerCounter::enable(uint8_t id, uint8_t clkGenId, uint32_t clkGenFrequency
 {
   if (id >= 3 && id <= 5 && (resolution == RES8 || resolution == RES16 || (id == 4 && resolution == RES32)))
   {
+    // 32-bit cross check
+    if (id == 4 && resolution == RES32 && timerCounter[2]) return false; // TC5 already in use
+    else if (id == 5 && timerCounter[1] && timerCounter[1]->resolution == RES32) return false; // TC4 in 32 bit mode, TC5 not available
+
     this->id = id;
     this->clkGenId = clkGenId;
     this->clkGenFrequency = clkGenFrequency;
