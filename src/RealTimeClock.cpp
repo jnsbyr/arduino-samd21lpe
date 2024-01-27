@@ -166,40 +166,42 @@ void RealTimeClock::sync() const
 
 void RealTimeClock::isrHandler()
 {
+  RealTimeClock& rtc = RealTimeClock::instance();
+
   // clear all interrupt flags
   uint8_t intFlag = RTC->MODE0.INTFLAG.reg;
   RTC->MODE0.INTFLAG.reg = RTC->MODE0.INTENSET.reg;
 
-  if ((intFlag & RTC_MODE0_INTENSET_SYNCRDY) && counterCallback)
+  if ((intFlag & RTC_MODE0_INTENSET_SYNCRDY) && rtc.counterCallback)
   {
     // handle counter read interrupt
     RTC->MODE0.INTENCLR.reg = RTC_MODE0_INTENCLR_SYNCRDY;
-    counterAvailable = true;
-    counterCallback();
-    counterCallback = nullptr;
-    counterAvailable = false;
+    rtc.counterAvailable = true;
+    rtc.counterCallback();
+    rtc.counterCallback = nullptr;
+    rtc.counterAvailable = false;
   }
 
   if (intFlag & RTC_MODE0_INTENSET_CMP0)
   {
     // handle timer interrupt
-    if (!periodic)
+    if (!rtc.periodic)
     {
       // not periodic, disable counter compare match interrupt
       RTC->MODE0.INTENCLR.reg = RTC_MODE0_INTENCLR_CMP0;
     }
-    else if (!clearOnTimer)
+    else if (!rtc.clearOnTimer)
     {
       // periodic and no clear on timer, update counter compare register
-      lastCounter += durationTicks;
-      RTC->MODE0.COMP[0].reg = lastCounter;
+      rtc.lastCounter += rtc.durationTicks;
+      RTC->MODE0.COMP[0].reg = rtc.lastCounter;
       // skipping sync reduces ISR latency
     }
 
     // handle interrupt
-    if (rtcHandler)
+    if (rtc.rtcHandler)
     {
-      rtcHandler();
+      rtc.rtcHandler();
     }
   }
 }

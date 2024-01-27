@@ -145,12 +145,13 @@ public:
    */
   void sync() const;
 
+public:
   /**
    * RTC interrupt handler
    *
-   * note: call sync() with configuration "periodic & !clearOnTimer" before accessing RTC to prevent peripheral bus stall
+   * note: call sync() with configuration "periodic & !clearOnTimer" before accessing RTC in ISR to prevent peripheral bus stall
    */
-  void isrHandler();
+  static void isrHandler();
 
 protected:
   uint16_t clkDiv = 0;          // 1..1024
