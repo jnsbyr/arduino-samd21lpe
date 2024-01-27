@@ -172,6 +172,14 @@ public:
   static void isrHandler(uint8_t id);
 
 protected:
+  /**
+   * parameterless ISR wrapper, required for vector table
+   */
+  static void isrHandlerTC3() { isrHandler(0); }
+  static void isrHandlerTC4() { isrHandler(1); }
+  static void isrHandlerTC5() { isrHandler(2); }
+
+protected:
   void sync() const;
   void setCounterRegister(uint32_t duration);
 
