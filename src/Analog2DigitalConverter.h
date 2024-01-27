@@ -93,7 +93,7 @@ public:
     uint32_t port; // bit within group
   };
 
-  static const uint8_t PIN_COUNT = 20;
+  static const uint8_t PIN_COUNT = 20; // MCU I/O pins with ADC/AIN capability
 
   static const Pin PIN_MAPPING[PIN_COUNT];
 
@@ -156,9 +156,9 @@ public:
    *
    * @param type reference voltage source, default REF_INT1V
    * @param voltage reference voltage [V], default 1.0 V, can also be used to scale result of read()
-   * @param forecUpdate force reference update, e.g. when changed by calling analogReference()
+   * @param forceUpdate force reference update, e.g. when changed by calling analogReference()
   */
-  void setReference(Reference type, float voltage, bool forecUpdate = false);
+  void setReference(Reference type, float voltage, bool forceUpdate = false);
 
   /**
    * set input gain
@@ -174,7 +174,7 @@ public:
   /**
    * enable pin as analog input
    *
-   * @param muxPos ADC_INPUTCTRL_MUXPOS_XXX_Val, use g_APinDescription[<Arduino pin>].ulADCChannelNumber to convert from Arduino pin
+   * @param muxPos ADC_INPUTCTRL_MUXPOS_XXX_Val, use g_APinDescription[<Arduino board pin>].ulADCChannelNumber to convert from Arduino pin
    */
   void enablePin(uint8_t muxPosVal);
 
@@ -273,7 +273,7 @@ public:
    */
   static void isrHandler();
 
-private:
+protected:
   static float roomTemp; // [°C]
   static float hotTemp;  // [°C]
   static float roomInt1vRef; // [V]
@@ -282,7 +282,7 @@ private:
   static uint32_t hotADC;
   static bool temperaturCalibrationValuesLoaded;
 
-private:
+protected:
   bool runStandby = false;
   bool freeRun = true;
   uint8_t clkGenId = UCHAR_MAX;
