@@ -171,14 +171,14 @@ public:
    */
   static void isrHandler(uint8_t id);
 
-private:
+protected:
   void sync() const;
   void setCounterRegister(uint32_t duration);
 
-private:
+protected:
   static TimerCounter* timerCounter[3];
 
-private:
+protected:
   bool periodic;
   bool interrupted = false;
   uint8_t id;
