@@ -111,7 +111,7 @@ void Analog2DigitalConverter::setSampling(uint8_t sampleTime, uint8_t averageCou
   this->adcFullScale = 4095;
 }
 
-void Analog2DigitalConverter::setReference(Reference type, float voltage, bool forecUpdate)
+void Analog2DigitalConverter::setReference(Reference type, float voltage, bool forceUpdate)
 {
   switch (type)
   {
@@ -135,7 +135,7 @@ void Analog2DigitalConverter::setReference(Reference type, float voltage, bool f
   refVal = voltage;
   resultScale = refVal*inputScale/adcFullScale;
 
-  if (forecUpdate)
+  if (forceUpdate)
   {
     lastRefSel = ULONG_MAX;
   }
@@ -447,9 +447,9 @@ uint32_t Analog2DigitalConverter::roomADC = 0;
 uint32_t Analog2DigitalConverter::hotADC = 0;
 bool Analog2DigitalConverter::temperaturCalibrationValuesLoaded = false;
 
-// mapping for SAMD2xG variant A-D, see datasheet table 7-1 "PORT Function Multiplexing"
+// mapping for SAMD2xG, see datasheet table 7-1 "PORT Function Multiplexing", also see enum EAnalogChannel in WVariant.h
 const Analog2DigitalConverter::Pin Analog2DigitalConverter::PIN_MAPPING[Analog2DigitalConverter::PIN_COUNT] =
-{
+{ // group, pin, port
   { 0,  2, PORT_PA02 },
   { 0,  3, PORT_PA03 },
   { 1,  8, PORT_PB08 },
@@ -458,18 +458,18 @@ const Analog2DigitalConverter::Pin Analog2DigitalConverter::PIN_MAPPING[Analog2D
   { 0,  5, PORT_PA05 },
   { 0,  6, PORT_PA06 },
   { 0,  7, PORT_PA07 },
-  { 0,  0,         0 },
-  { 0,  0,         0 },
-  { 1, 10, PORT_PB10 },
-  { 1, 11, PORT_PB11 },
-  { 0,  0,         0 },
-  { 0,  0,         0 },
-  { 0,  0,         0 },
-  { 0,  0,         0 },
-  { 0, 16, PORT_PA16 },
-  { 0, 17, PORT_PA17 },
-  { 0, 18, PORT_PA18 },
-  { 0, 19, PORT_PA19 }
+  { 0,  0,         0 }, // PORT_PB00 only available on SAMD21J
+  { 0,  0,         0 }, // PORT_PB01 only available on SAMD21J
+  { 1,  2, PORT_PB02 },
+  { 1,  3, PORT_PB03 },
+  { 0,  0,         0 }, // PORT_PB04 only available on SAMD21J
+  { 0,  0,         0 }, // PORT_PB05 only available on SAMD21J
+  { 0,  0,         0 }, // PORT_PB06 only available on SAMD21J
+  { 0,  0,         0 }, // PORT_PB07 only available on SAMD21J
+  { 0,  8, PORT_PA08 },
+  { 0,  9, PORT_PA09 },
+  { 0, 10, PORT_PA10 },
+  { 0, 11, PORT_PA11 }
 };
 
 void ADC_Handler()
