@@ -7,12 +7,13 @@ Take Arduino low power projects for the SAM D21 to the next level.
 [1. Motivation](#motivation)  
 [2. MCU Power Management](#mcu-power-management)  
 [3. ADC, EIC, RTC and TC](#adc-eic-rtc-and-tc)  
-[4. Seed Studio XIAO SAM D21](#seed-studio-xiao-sam-d21)  
-[5. Documentation](#documentation)  
-[6. Examples](#examples)  
-[7. Recommended Reading](#recommended-reading)  
-[8. Contributing](#contributing)  
-[9. Licenses and Credits](#licenses-and-credits)  
+[4. Seed Studio XIAO SAM D21 Optimization](#seed-studio-xiao-sam-d21-optimization)  
+[5. Results](#results)  
+[6. Documentation](#documentation)  
+[7. Examples](#examples)  
+[8. Recommended Reading](#recommended-reading)  
+[9. Contributing](#contributing)  
+[10. Licenses and Credits](#licenses-and-credits)  
 
 
 ## Motivation
@@ -86,7 +87,7 @@ On the other hand the SPI implementation of the Arduino Core for SAM D21 does no
 *uint32_t configBaud = (uint64_t)spiBaud**SERCOM_SPI_FREQ_REF/F_CPU*
 
 
-## Seed Studio XIAO SAM D21
+## Seed Studio XIAO SAM D21 Optimization
 
 MCU boards are typically created with a focus on features and not on low power operation.
 
@@ -95,7 +96,18 @@ The power consumption of the Seed Studio XIAO SAM D21 can be reduced significant
 - cut PCB trace to power LED to save approximately 2 mA, best done near resistor on bottom side of board
 - lift voltage regulator output pin from board when directly powering via pin 3V3 to prevent reverse current of approximately 14 µA (requires removing RF shield, can be pried loos after weakening soldering with cutter and can be reattached)
 
-![Seed Studio XIAO SAM D21 without RF shield](assets/XIAO-SAMD21-open.jpg "Seed Studio XIAO SAM D21 without RF shield")
+<img src="assets/XIAO-SAMD21-open.jpg" alt="Seed Studio XIAO SAM D21 without RF shield" width="50%" height="50%">
+
+
+## Results
+
+One of the easiest ways to make use of this library is to replace *delay()* with *TimerCount::wait()*. The following scope snapshot shows a plot of the supply current of the XIAO SAM D21 board running for 11 ms at 48 MHz, where the MCU is put in sleep mode "idle2" for 8 ms, reducing the supply current during that time by more than 50 % from ~8 mA to ~3 mA (50 mV = 5 mA):
+
+<img src="assets/SAMD21-sleep-idle2.jpg" alt="SAM D21 in sleep mode idle2" width="30%" height="30%">
+
+The comparatively high standby current in this plot is due to the fact that the board was connected via USB to power the board. Directly powered  the standby current will drop to ~2 µA.
+
+Optimizing the hardware, throttling the MCU clock, tuning generic clock generator setting, activating sleep mode "standby" and using an event/interrupt driven approach, possibly combined with the sleep-on-exit mode, provides additional potential for low power operation of the SAM D21.
 
 
 ## Documentation
