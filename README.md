@@ -101,7 +101,7 @@ The power consumption of the Seed Studio XIAO SAM D21 can be reduced significant
 
 ## Results
 
-One of the easiest ways to make use of this library is to replace *delay()* with *TimerCount::wait()*. The following scope snapshot shows a plot of the supply current of the XIAO SAM D21 board running for 11 ms at 48 MHz, where the MCU is put in sleep mode "idle2" for 8 ms, reducing the supply current during that time by more than 50 % from ~8 mA to ~3 mA (50 mV = 5 mA):
+One of the easiest ways to make use of this library is to replace *delay()* with *TimerCounter::wait()*. The following scope snapshot shows a plot of the supply current of the XIAO SAM D21 board running for 11 ms at 48 MHz, where the MCU is put in sleep mode "idle2" for 8 ms, reducing the supply current during that time by more than 50 % from ~8 mA to ~3 mA (50 mV = 5 mA):
 
 <img src="assets/SAMD21-sleep-idle2.jpg" alt="SAM D21 in sleep mode idle2" width="30%" height="30%">
 
