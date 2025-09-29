@@ -35,7 +35,7 @@ void setupTimer() {
   System::setupClockGenOSCULP32K(GCLKGEN_ID_1K, 4); // 2^(4+1) = 32 -> 1 kHz
 
   // configure and start timer counter
-  timer.enable(4, GCLKGEN_ID_1K, 1024, TimerCounter::DIV1, TimerCounter::RES16, true);
+  timer.enable(4, GCLKGEN_ID_1K, 1024, TimerCounter::DIV1, TimerCounter::RES16, 1000U, true);
   timer.start(1, false, timerInterruptHandler);
 }
 

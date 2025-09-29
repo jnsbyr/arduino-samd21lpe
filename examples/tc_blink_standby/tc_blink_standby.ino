@@ -16,7 +16,7 @@ void setupTimer() {
   System::setupClockGenOSCULP32K(GCLKGEN_ID_1K, 4); // 2^(4+1) = 32 -> 1 kHz
 
   // configure timer counter to run at 1 kHz and to continue in standby
-  timer.enable(4, GCLKGEN_ID_1K, 1024, TimerCounter::DIV1, TimerCounter::RES16, true);
+  timer.enable(4, GCLKGEN_ID_1K, 1024, TimerCounter::DIV1, TimerCounter::RES16, 1000U, true);
 
   // select sleep mode STANDBY for timer wait
   System::setSleepMode(System::STANDBY);

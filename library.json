@@ -12,7 +12,7 @@
         "type": "git",
         "url": "https://github.com/jnsbyr/arduino-samd21lpe"
     },
-    "version": "1.0.9",
+    "version": "1.0.10",
     "examples": "examples/*/*.ino",
     "license": "Apache-2.0",
     "frameworks": "arduino",
